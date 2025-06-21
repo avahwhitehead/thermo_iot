@@ -93,9 +93,7 @@ void DisplayBattery() {
     M5.Display.println('%');
 }
 
-void loop() {
-    M5.update();
-
+void WriteToSerial() {
     // Turn off when the power button is held
     if (M5.BtnPWR.isPressed()) {
         Serial.println("Power off pressed...");
@@ -105,32 +103,30 @@ void loop() {
     }
 
     // Read temp and humidity sensor
-    if (sht4.update()) {
-        Serial.println("-----SHT4X-----");
-        Serial.print("Temperature: ");
-        Serial.print(sht4.cTemp);
-        Serial.println(" degrees C");
-        Serial.print("Humidity: ");
-        Serial.print(sht4.humidity);
-        Serial.println("% rH");
-        Serial.println("-------------\r\n");
-    }
+    Serial.println("-----SHT4X-----");
+    Serial.print("Temperature: ");
+    Serial.print(sht4.cTemp);
+    Serial.println(" degrees C");
+    Serial.print("Humidity: ");
+    Serial.print(sht4.humidity);
+    Serial.println("% rH");
+    Serial.println("-------------\r\n");
 
     // Read Barometric temperature and pressor sensor
-    if (bmp.update()) {
-        Serial.println("-----BMP280-----");
-        Serial.print(F("Temperature: "));
-        Serial.print(bmp.cTemp);
-        Serial.println(" degrees C");
-        Serial.print(F("Pressure: "));
-        Serial.print(bmp.pressure);
-        Serial.println(" Pa");
-        Serial.print(F("Approx altitude: "));
-        Serial.print(bmp.altitude);
-        Serial.println(" m");
-        Serial.println("-------------\r\n");
-    }
+    Serial.println("-----BMP280-----");
+    Serial.print(F("Temperature: "));
+    Serial.print(bmp.cTemp);
+    Serial.println(" degrees C");
+    Serial.print(F("Pressure: "));
+    Serial.print(bmp.pressure);
+    Serial.println(" Pa");
+    Serial.print(F("Approx altitude: "));
+    Serial.print(bmp.altitude);
+    Serial.println(" m");
+    Serial.println("-------------\r\n");
+}
 
+void WriteToDisplay() {
     M5.Display.setCursor(0, 0);
 
     M5.Display.setTextSize(1);
@@ -141,8 +137,8 @@ void loop() {
 
     M5.Display.setTextSize(3);
     M5.Display.print(sht4.cTemp);
-    M5.Display.print("C");
-    M5.Display.print("-");
+    M5.Display.print('C');
+    M5.Display.print('-');
     M5.Display.print(bmp.cTemp);
     M5.Display.println("C");
     
@@ -170,13 +166,27 @@ void loop() {
     M5.Display.println("Pa");
     M5.Display.setTextSize(1);
 
-    
-    // M5.Display.setTextSize(2);
-    // M5.Display.print('~');
     // M5.Display.print(bmp.altitude);
-    // M5.Display.println(" m");
-    // M5.Display.setTextSize(1);
-    // M5.Display.print(F("Altitude"));
+}
+
+void loop() {
+    M5.update();
+
+    // Turn off when the power button is held
+    if (M5.BtnPWR.isPressed()) {
+        Serial.println("Power off pressed...");
+        delay(500);
+        M5.Power.deepSleep();
+        return;
+    }
+
+    bmp.update();
+    
+    sht4.update();
+
+    WriteToSerial();
+
+    WriteToDisplay();
 
     delay(1000);
 }
