@@ -75,6 +75,8 @@ void DisplayBattery() {
     int displayWidthPixels = M5.Display.width();
     int characterWidthPixels = M5.Display.fontWidth();
 
+    int cursorPositionPixels = M5.Display.getCursorX();
+
     // Get the width of the number in characters
     // Plus one for %
     int text_width = 0;
@@ -86,7 +88,7 @@ void DisplayBattery() {
         text_width = characterWidthPixels * 2;
     }
 
-    M5.Display.setCursor(displayWidthPixels - text_width, 0);
+    M5.Display.setCursor(displayWidthPixels - cursorPositionPixels - text_width, 0);
     M5.Display.print(batteryLevel);
     M5.Display.println('%');
 }
@@ -132,37 +134,42 @@ void loop() {
     M5.Display.setCursor(0, 0);
 
     M5.Display.setTextSize(1);
-    DisplayBattery();
+    M5.Display.println("Temperature (SHT4 - BMP)");
     
+    M5.Display.setTextSize(1);
+    DisplayBattery();
+
     M5.Display.setTextSize(3);
     M5.Display.print(sht4.cTemp);
     M5.Display.print("C");
     M5.Display.print("-");
     M5.Display.print(bmp.cTemp);
     M5.Display.println("C");
-    M5.Display.setTextSize(1);
-    M5.Display.println("Temperature (SHT4 - BMP)");
     
+    M5.Display.setTextSize(1);
     M5.Display.println();
+    M5.Display.println("Humidity");
     
     M5.Display.setTextSize(3);
     M5.Display.print(sht4.humidity);
     M5.Display.println("%");
+    
     M5.Display.setTextSize(1);
-    M5.Display.println("Humidity");
-    
     M5.Display.println();
-    
+    M5.Display.println("Pressure");
+
     M5.Display.setTextSize(2);
     M5.Display.print(bmp.pressure / 101325);
-    M5.Display.print("atm | ");
+    M5.Display.println("atm");
+    
+    M5.Display.setTextSize(1);
+    M5.Display.println();
+    M5.Display.setTextSize(2);
 
     M5.Display.print(int(bmp.pressure));
     M5.Display.println("Pa");
     M5.Display.setTextSize(1);
 
-    M5.Display.println("Pressure");
-    M5.Display.println();
     
     // M5.Display.setTextSize(2);
     // M5.Display.print('~');
