@@ -13,6 +13,8 @@
  * M5UnitENV: https://github.com/m5stack/M5Unit-ENV
  */
 
+#include "string"
+
 #include "M5StickCPlus2.h"
 #include "M5UnitENV.h"
 
@@ -24,7 +26,7 @@ void setup() {
 
     M5.begin(cfg);
 
-    M5.Lcd.setTextSize(2);
+    M5.Display.setTextSize(2);
     
     Serial.begin(115200);
     Serial.flush();
@@ -35,7 +37,7 @@ void setup() {
 
     if (!sht4.begin(&Wire, SHT40_I2C_ADDR_44, 32, 33, 400000U)) {
         Serial.println("Couldn't find SHT4x");
-        M5.Lcd.println("Couldn't find SHT4x");
+        M5.Display.println("Couldn't find SHT4x");
         delay(2000);
         M5.Power.powerOff();
         return;
@@ -49,7 +51,7 @@ void setup() {
     
     if (!bmp.begin(&Wire, BMP280_I2C_ADDR, 32, 33, 400000U)) {
         Serial.println("Couldn't find BMP280");
-        M5.Lcd.println("Couldn't find BMP280");
+        M5.Display.println("Couldn't find BMP280");
         delay(2000);
         M5.Power.powerOff();
         return;
@@ -61,6 +63,28 @@ void setup() {
         BMP280::SAMPLING_X16,    /* Pressure oversampling */
         BMP280::FILTER_X16,      /* Filtering. */
         BMP280::STANDBY_MS_500); /* Standby time. */
+}
+
+void DisplayBattery() {
+    int batteryLevel = M5.Power.getBatteryLevel();
+
+    int displayWidthPixels = M5.Display.width();
+    int characterWidthPixels = M5.Display.fontWidth();
+
+    // Get the width of the number in characters
+    // Plus one for %
+    int text_width = 0;
+    if (batteryLevel == 100) {
+        text_width = characterWidthPixels * 4;
+    } else if (batteryLevel >= 10) {
+        text_width = characterWidthPixels * 3;
+    } else {
+        text_width = characterWidthPixels * 2;
+    }
+
+    M5.Display.setCursor(displayWidthPixels - text_width, 0);
+    M5.Display.print(batteryLevel);
+    M5.Display.println('%');
 }
 
 void loop() {
@@ -100,47 +124,46 @@ void loop() {
         Serial.println(" m");
         Serial.println("-------------\r\n");
     }
-    
-    M5.Lcd.setCursor(0, 0);
-    M5.Lcd.clearDisplay();
-    
-    M5.Lcd.setTextSize(1);
-    M5.Lcd.print("Battery: ");
-    M5.Lcd.print(M5.Power.getBatteryLevel());
-    M5.Lcd.println('%');
-    
-    M5.Lcd.setTextSize(1);    
-    M5.Lcd.println();
-    
-    M5.Lcd.println("-----SHT4X-----");
-    M5.Lcd.println("Temperature: ");
-    M5.Lcd.print(sht4.cTemp);
-    M5.Lcd.println("C");
 
-    M5.Lcd.println("Humidity: ");
-    M5.Lcd.print(sht4.humidity);
-    M5.Lcd.println("% rH");
-    M5.Lcd.println("-------------");
-    M5.Lcd.println();
+    M5.Display.clearDisplay();
     
+    DisplayBattery();
     
-    M5.Lcd.println("-----BMP280-----");
-    M5.Lcd.print(F("Temperature: "));
-    M5.Lcd.print(bmp.cTemp);
-    M5.Lcd.println("C");
+    M5.Display.setTextSize(1);
+    
 
-    M5.Lcd.print(F("Pressure: "));
-    M5.Lcd.print(bmp.pressure);
-    M5.Lcd.println(" Pa");
-
-    M5.Lcd.print(F("Pressure: "));
-    M5.Lcd.print(bmp.pressure / 101325);
-    M5.Lcd.println(" atm");
+    M5.Display.setTextSize(1);    
+    M5.Display.println();
     
-    M5.Lcd.print(F("Approx altitude: "));
-    M5.Lcd.print(bmp.altitude);
-    M5.Lcd.println(" m");
-    M5.Lcd.println("-------------");
+    M5.Display.println("-----SHT4X-----");
+    M5.Display.println("Temperature: ");
+    M5.Display.print(sht4.cTemp);
+    M5.Display.println("C");
+
+    M5.Display.println("Humidity: ");
+    M5.Display.print(sht4.humidity);
+    M5.Display.println("% rH");
+    M5.Display.println("-------------");
+    M5.Display.println();
+    
+    
+    M5.Display.println("-----BMP280-----");
+    M5.Display.print(F("Temperature: "));
+    M5.Display.print(bmp.cTemp);
+    M5.Display.println("C");
+
+    M5.Display.print(F("Pressure: "));
+    M5.Display.print(bmp.pressure);
+    M5.Display.println(" Pa");
+
+    M5.Display.print(F("Pressure: "));
+    M5.Display.print(bmp.pressure / 101325);
+    M5.Display.println(" atm");
+    
+    M5.Display.print(F("Approx altitude: "));
+    M5.Display.print(bmp.altitude);
+    M5.Display.println(" m");
+    M5.Display.println("-------------");
 
     delay(1000);
 }
