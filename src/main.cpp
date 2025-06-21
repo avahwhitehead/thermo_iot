@@ -127,6 +127,14 @@ void DisplayBattery() {
     }
 
     M5.Display.setCursor(displayWidthPixels - cursorPositionPixels - text_width, 0);
+
+    // Hide the overlapping 
+    if (100 > batteryLevel && batteryLevel >= 10) {
+        M5.Display.print(" ");
+    } else {
+        M5.Display.print("  ");
+    }
+
     M5.Display.print(batteryLevel);
     M5.Display.println('%');
 }
