@@ -17,9 +17,41 @@
 
 #include "M5StickCPlus2.h"
 #include "M5UnitENV.h"
+#include "WiFi.h"
+
+#include "secrets.h"
+
+const char *ssid = SECRET_WIFI_SSID;
+const char *password = SECRET_WIFI_PASS;
 
 SHT4X sht4;
 BMP280 bmp;
+
+void ConnectToWifi() {
+    WiFi.mode(WIFI_STA);
+
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    WiFi.setHostname("Thermo_iot");
+
+    WiFi.begin(ssid, password);
+
+    M5.Display.print("Waiting for connection");
+    while (WiFi.status() != WL_CONNECTED) {
+        M5.Display.print('.');
+        delay(100);
+    }
+    M5.Display.println();
+
+    M5.Display.println("Connected!");
+    
+    M5.Display.print("IP: ");
+    M5.Display.println(WiFi.localIP());
+    
+    M5.Display.print("Signal strength: ");
+    M5.Display.println(WiFi.RSSI());
+
+    delay(1000);
+}
 
 void setup() {
     auto cfg = M5.config();
@@ -67,6 +99,12 @@ void setup() {
     M5.Display.setRotation(1);
 
     M5.Display.clear();
+    M5.Display.setCursor(0,0);
+
+    ConnectToWifi();
+
+    M5.Display.clear();
+    M5.Display.setCursor(0,0);
 }
 
 void DisplayBattery() {
@@ -170,9 +208,8 @@ void WriteToDisplay() {
 }
 
 void loop() {
-    M5.update();
-
     // Turn off when the power button is held
+    M5.update();
     if (M5.BtnPWR.isPressed()) {
         Serial.println("Power off pressed...");
         delay(500);
@@ -180,8 +217,8 @@ void loop() {
         return;
     }
 
+    // Update the sensors
     bmp.update();
-    
     sht4.update();
 
     WriteToSerial();

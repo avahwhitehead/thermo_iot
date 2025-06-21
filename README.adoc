@@ -1,0 +1,11 @@
+= Thermo IOT
+
+== Installation
+
+Create a `secrets.h` file in the `src/` directory:
+
+[source, cpp]
+----
+#define SECRET_WIFI_SSID "WiFi SSID"
+#define SECRET_WIFI_PASS "WiFi Password"
+----
