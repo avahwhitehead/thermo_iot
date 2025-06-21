@@ -13,19 +13,51 @@
  * M5UnitENV: https://github.com/m5stack/M5Unit-ENV
  */
 
-#include "string"
+#include <string>
 
-#include "M5StickCPlus2.h"
-#include "M5UnitENV.h"
-#include "WiFi.h"
+#include <ArduinoJson.h>
+#include <M5StickCPlus2.h>
+#include <M5UnitENV.h>
+#include <PubSubClient.h>
+#include <StreamUtils.h>
+#include <WiFi.h>
 
 #include "secrets.h"
 
 const char *ssid = SECRET_WIFI_SSID;
 const char *password = SECRET_WIFI_PASS;
 
+const char *mqttHost = SECRET_MQTT_HOST;
+const int mqttPort = SECRET_MQTT_PORT;
+const char *mqttTopic = SECRET_MQTT_TOPIC;
+
+const char *mqttClientId = SECRET_MQTT_CLIENT_ID;
+
+const char *mqttUsername = SECRET_MQTT_USER;
+const char *mqttPassword = SECRET_MQTT_PASS;
+
+
 SHT4X sht4;
 BMP280 bmp;
+
+void PubSubCallback(char* topic, byte* payload, unsigned int length) {
+    /*
+    // In order to republish this payload, a copy must be made
+    // as the orignal payload buffer will be overwritten whilst
+    // constructing the PUBLISH packet.
+    
+    // Allocate the correct amount of memory for the payload copy
+    byte* p = (byte*)malloc(length);
+    // Copy the payload to the new buffer
+    memcpy(p,payload,length);
+    mqttClient.publish(mqttTopic, p, length);
+    // Free the memory
+    free(p);
+    */
+}
+
+WiFiClient wifiClient;
+PubSubClient mqttClient = PubSubClient(mqttHost, mqttPort, PubSubCallback, wifiClient);
 
 void ConnectToWifi() {
     WiFi.mode(WIFI_STA);
@@ -51,6 +83,51 @@ void ConnectToWifi() {
     M5.Display.println(WiFi.RSSI());
 
     delay(1000);
+}
+void ConnectToMqtt() {
+    delay(1000);
+
+    Serial.print("Attempting to connect to WiFi client (");
+    Serial.print(mqttHost);
+    Serial.print(":");
+    Serial.print(mqttPort);
+    Serial.println(")");
+
+    if (wifiClient.connect(mqttHost, mqttPort)) {
+        Serial.println("Connected to WiFi client");
+    } else {
+        Serial.println("Failed to connect to WiFi client");
+    }
+    
+    Serial.print("Attempting to connect to MQTT (");
+    Serial.print(mqttHost);
+    Serial.print(":");
+    Serial.print(mqttPort);
+    Serial.println(")");
+    
+    delay(1000);
+
+    if (mqttClient.connect(mqttClientId, mqttUsername, mqttPassword)) {
+        Serial.println("Connected to MQTT");
+    } else {
+        Serial.println("Failed to connect to MQTT");
+        Serial.print("rc=");
+        Serial.println(mqttClient.state());
+    }
+}
+
+void SendSensorPayloadToMqtt() {
+    JsonDocument doc;
+    doc["temp_sht"] = sht4.cTemp;
+    doc["temp_bmp"] = bmp.cTemp;
+    doc["humidity"] = sht4.humidity;
+    doc["pressure"] = bmp.pressure;
+
+    mqttClient.beginPublish(mqttTopic, measureJson(doc), false);
+    BufferingPrint bufferedClient(mqttClient, 32);
+    serializeJson(doc, bufferedClient);
+    bufferedClient.flush();
+    mqttClient.endPublish();
 }
 
 void setup() {
@@ -90,7 +167,8 @@ void setup() {
     }
     
     /* Default settings from datasheet. */
-    bmp.setSampling(BMP280::MODE_NORMAL,     /* Operating Mode. */
+    bmp.setSampling(
+        BMP280::MODE_NORMAL,     /* Operating Mode. */
         BMP280::SAMPLING_X2,     /* Temp. oversampling */
         BMP280::SAMPLING_X16,    /* Pressure oversampling */
         BMP280::FILTER_X16,      /* Filtering. */
@@ -103,6 +181,8 @@ void setup() {
 
     ConnectToWifi();
 
+    ConnectToMqtt();
+
     M5.Display.clear();
     M5.Display.setCursor(0,0);
 }
@@ -112,8 +192,6 @@ void DisplayBattery() {
 
     int displayWidthPixels = M5.Display.width();
     int characterWidthPixels = M5.Display.fontWidth();
-
-    int cursorPositionPixels = M5.Display.getCursorX();
 
     // Get the width of the number in characters
     // Plus one for %
@@ -126,13 +204,15 @@ void DisplayBattery() {
         text_width = characterWidthPixels * 2;
     }
 
-    M5.Display.setCursor(displayWidthPixels - cursorPositionPixels - text_width, 0);
+    M5.Display.setCursor(displayWidthPixels - text_width, 0);
 
-    // Hide the overlapping 
-    if (100 > batteryLevel && batteryLevel >= 10) {
-        M5.Display.print(" ");
-    } else {
-        M5.Display.print("  ");
+    // Hide overlapping characters when length decreases
+    if (batteryLevel < 100) {
+        if (batteryLevel >= 10) {
+            M5.Display.print(" ");
+        } else {
+            M5.Display.print("  ");
+        }
     }
 
     M5.Display.print(batteryLevel);
@@ -243,6 +323,8 @@ void WriteToDisplay() {
     // M5.Display.print(bmp.altitude);
 }
 
+unsigned int loopCount = 0;
+
 void loop() {
     // Turn off when the power button is held
     M5.update();
@@ -260,6 +342,11 @@ void loop() {
     WriteToSerial();
 
     WriteToDisplay();
+
+    if (++loopCount >= 10) {
+        SendSensorPayloadToMqtt();
+        loopCount = 0;
+    }
 
     delay(1000);
 }

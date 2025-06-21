@@ -8,4 +8,14 @@ Create a `secrets.h` file in the `src/` directory:
 ----
 #define SECRET_WIFI_SSID "WiFi SSID"
 #define SECRET_WIFI_PASS "WiFi Password"
+
+#define SECRET_MQTT_HOST "mqtt.example.com"
+#define SECRET_MQTT_PORT 1883
+
+#define SECRET_MQTT_TOPIC "thermo_iot"
+
+#define SECRET_MQTT_CLIENT_ID "thermo_iot_client"
+
+#define SECRET_MQTT_USER "MQTT User"
+#define SECRET_MQTT_PASS "MQTT Password"
 ----
