@@ -131,6 +131,10 @@ void DisplayBattery() {
     M5.Display.println('%');
 }
 
+void DisplayStatusBar() {
+    DisplayBattery();
+}
+
 void WriteToSerial() {
     // Turn off when the power button is held
     if (M5.BtnPWR.isPressed()) {
@@ -166,12 +170,13 @@ void WriteToSerial() {
 
 void WriteToDisplay() {
     M5.Display.setCursor(0, 0);
-
-    M5.Display.setTextSize(1);
-    M5.Display.println("Temperature (SHT4 - BMP)");
     
     M5.Display.setTextSize(1);
-    DisplayBattery();
+    DisplayStatusBar();
+
+    // ========
+    // Temperature
+    // ========
 
     M5.Display.setTextSize(3);
     M5.Display.print(sht4.cTemp);
@@ -179,30 +184,42 @@ void WriteToDisplay() {
     M5.Display.print('-');
     M5.Display.print(bmp.cTemp);
     M5.Display.println("C");
-    
+
     M5.Display.setTextSize(1);
+    M5.Display.println("Temperature (SHT4 - BMP)");
     M5.Display.println();
-    M5.Display.println("Humidity");
     
+    // ========
+    // Humidity
+    // ========
+
     M5.Display.setTextSize(3);
     M5.Display.print(sht4.humidity);
     M5.Display.println("%");
-    
+
     M5.Display.setTextSize(1);
+    M5.Display.println("Humidity");
     M5.Display.println();
-    M5.Display.println("Pressure");
+    
+    // ========
+    // Pressure
+    // ========
 
     M5.Display.setTextSize(2);
     M5.Display.print(bmp.pressure / 101325);
-    M5.Display.println("atm");
-    
-    M5.Display.setTextSize(1);
-    M5.Display.println();
-    M5.Display.setTextSize(2);
+    M5.Display.print("atm");
 
+    M5.Display.print(" | ");
+    
     M5.Display.print(int(bmp.pressure));
     M5.Display.println("Pa");
+    
     M5.Display.setTextSize(1);
+    M5.Display.println("Pressure");
+    
+    // ========
+    // Altitude
+    // ========
 
     // M5.Display.print(bmp.altitude);
 }
