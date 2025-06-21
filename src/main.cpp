@@ -63,6 +63,10 @@ void setup() {
         BMP280::SAMPLING_X16,    /* Pressure oversampling */
         BMP280::FILTER_X16,      /* Filtering. */
         BMP280::STANDBY_MS_500); /* Standby time. */
+
+    M5.Display.setRotation(1);
+
+    M5.Display.clear();
 }
 
 void DisplayBattery() {
@@ -125,45 +129,47 @@ void loop() {
         Serial.println("-------------\r\n");
     }
 
-    M5.Display.clearDisplay();
-    
+    M5.Display.setCursor(0, 0);
+
+    M5.Display.setTextSize(1);
     DisplayBattery();
     
-    M5.Display.setTextSize(1);
-    
-
-    M5.Display.setTextSize(1);    
-    M5.Display.println();
-    
-    M5.Display.println("-----SHT4X-----");
-    M5.Display.println("Temperature: ");
+    M5.Display.setTextSize(3);
     M5.Display.print(sht4.cTemp);
-    M5.Display.println("C");
-
-    M5.Display.println("Humidity: ");
-    M5.Display.print(sht4.humidity);
-    M5.Display.println("% rH");
-    M5.Display.println("-------------");
-    M5.Display.println();
-    
-    
-    M5.Display.println("-----BMP280-----");
-    M5.Display.print(F("Temperature: "));
+    M5.Display.print("C");
+    M5.Display.print("-");
     M5.Display.print(bmp.cTemp);
     M5.Display.println("C");
-
-    M5.Display.print(F("Pressure: "));
-    M5.Display.print(bmp.pressure);
-    M5.Display.println(" Pa");
-
-    M5.Display.print(F("Pressure: "));
-    M5.Display.print(bmp.pressure / 101325);
-    M5.Display.println(" atm");
+    M5.Display.setTextSize(1);
+    M5.Display.println("Temperature (SHT4 - BMP)");
     
-    M5.Display.print(F("Approx altitude: "));
-    M5.Display.print(bmp.altitude);
-    M5.Display.println(" m");
-    M5.Display.println("-------------");
+    M5.Display.println();
+    
+    M5.Display.setTextSize(3);
+    M5.Display.print(sht4.humidity);
+    M5.Display.println("%");
+    M5.Display.setTextSize(1);
+    M5.Display.println("Humidity");
+    
+    M5.Display.println();
+    
+    M5.Display.setTextSize(2);
+    M5.Display.print(bmp.pressure / 101325);
+    M5.Display.print("atm | ");
+
+    M5.Display.print(int(bmp.pressure));
+    M5.Display.println("Pa");
+    M5.Display.setTextSize(1);
+
+    M5.Display.println("Pressure");
+    M5.Display.println();
+    
+    // M5.Display.setTextSize(2);
+    // M5.Display.print('~');
+    // M5.Display.print(bmp.altitude);
+    // M5.Display.println(" m");
+    // M5.Display.setTextSize(1);
+    // M5.Display.print(F("Altitude"));
 
     delay(1000);
 }
