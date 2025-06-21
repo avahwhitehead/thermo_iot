@@ -131,7 +131,16 @@ void DisplayBattery() {
     M5.Display.println('%');
 }
 
+void DisplayWiFi() {
+    M5.Display.print(WiFi.localIP());
+    M5.Display.print(" (");
+    M5.Display.print(WiFi.RSSI());
+    M5.Display.print(')');
+}
+
 void DisplayStatusBar() {
+    DisplayWiFi();
+    
     DisplayBattery();
 }
 
@@ -173,6 +182,8 @@ void WriteToDisplay() {
     
     M5.Display.setTextSize(1);
     DisplayStatusBar();
+
+    M5.Display.println();
 
     // ========
     // Temperature
