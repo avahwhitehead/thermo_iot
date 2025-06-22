@@ -193,20 +193,14 @@ void DisplayBattery() {
     int displayWidthPixels = M5.Display.width();
     int characterWidthPixels = M5.Display.fontWidth();
 
-    // Get the width of the number in characters
-    // Plus one for %
-    int text_width = 0;
-    if (batteryLevel == 100) {
-        text_width = characterWidthPixels * 4;
-    } else if (batteryLevel >= 10) {
-        text_width = characterWidthPixels * 3;
-    } else {
-        text_width = characterWidthPixels * 2;
-    }
+    // Offset by 3 for the maximum battery length
+    // Offset by 1 for the percent sign
+    // Offset by 3 for the charging indicator
+    auto newCursorX = displayWidthPixels - (7 * characterWidthPixels);
+    M5.Display.setCursor(newCursorX, 0);
 
-    M5.Display.setCursor(displayWidthPixels - text_width, 0);
-
-    // Hide overlapping characters when length decreases
+    // Pad the battery level with leading space
+    // To 3 characters
     if (batteryLevel < 100) {
         if (batteryLevel >= 10) {
             M5.Display.print(" ");
@@ -215,8 +209,18 @@ void DisplayBattery() {
         }
     }
 
+    // Display the battery level
     M5.Display.print(batteryLevel);
-    M5.Display.println('%');
+    M5.Display.print('%');
+    
+    //Display charging
+    if (M5.Power.isCharging()) {
+        M5.Display.print("(C)");
+    } else {
+        M5.Display.print("   ");
+    }
+    
+    M5.Display.println();
 }
 
 void DisplayWiFi() {
@@ -233,36 +237,29 @@ void DisplayStatusBar() {
 }
 
 void WriteToSerial() {
-    // Turn off when the power button is held
-    if (M5.BtnPWR.isPressed()) {
-        Serial.println("Power off pressed...");
-        delay(500);
-        M5.Power.deepSleep();
-        return;
-    }
+    Serial.println("----------------");
 
-    // Read temp and humidity sensor
-    Serial.println("-----SHT4X-----");
-    Serial.print("Temperature: ");
+    Serial.print("Temp (SHT40): ");
     Serial.print(sht4.cTemp);
-    Serial.println(" degrees C");
+    Serial.println("C");
+
+    Serial.print("Temp (BMP280): ");
+    Serial.print(bmp.cTemp);
+    Serial.println("C");
+
     Serial.print("Humidity: ");
     Serial.print(sht4.humidity);
     Serial.println("% rH");
-    Serial.println("-------------\r\n");
 
-    // Read Barometric temperature and pressor sensor
-    Serial.println("-----BMP280-----");
-    Serial.print(F("Temperature: "));
-    Serial.print(bmp.cTemp);
-    Serial.println(" degrees C");
     Serial.print(F("Pressure: "));
     Serial.print(bmp.pressure);
     Serial.println(" Pa");
+
     Serial.print(F("Approx altitude: "));
     Serial.print(bmp.altitude);
     Serial.println(" m");
-    Serial.println("-------------\r\n");
+
+    Serial.println("----------------");
 }
 
 void WriteToDisplay() {
