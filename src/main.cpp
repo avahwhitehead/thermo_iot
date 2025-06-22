@@ -16,6 +16,7 @@
 #include <string>
 
 #include <ArduinoJson.h>
+#include <esp_sntp.h>
 #include <M5StickCPlus2.h>
 #include <M5UnitENV.h>
 #include <PubSubClient.h>
@@ -23,6 +24,10 @@
 #include <WiFi.h>
 
 #include "secrets.h"
+
+#define NTP_SERVER1 "0.pool.ntp.org"
+#define NTP_SERVER2 "1.pool.ntp.org"
+#define NTP_SERVER3 "2.pool.ntp.org"
 
 const char *ssid = SECRET_WIFI_SSID;
 const char *password = SECRET_WIFI_PASS;
@@ -36,28 +41,59 @@ const char *mqttClientId = SECRET_MQTT_CLIENT_ID;
 const char *mqttUsername = SECRET_MQTT_USER;
 const char *mqttPassword = SECRET_MQTT_PASS;
 
+String GetDatetimeString() {
+    auto date = M5.Rtc.getDate();
+    auto time = M5.Rtc.getTime();
+
+    // year
+    auto dateString = String(date.year);
+
+    // month
+    dateString = dateString + "-";
+    if (date.month < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(date.month);
+
+    // day
+    dateString = dateString + "-";
+    if (date.date < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(date.date);
+
+    // hour
+    dateString = dateString + "T";
+    if (time.hours < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(time.hours);
+
+    // minute
+    dateString = dateString + ":";
+    if (time.minutes < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(time.minutes);
+
+    // seconds
+    dateString = dateString + ":";
+    if (time.seconds < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(time.seconds);
+
+    dateString = dateString + "Z";
+
+    return dateString;
+}
+
 
 SHT4X sht4;
 BMP280 bmp;
 
-void PubSubCallback(char* topic, byte* payload, unsigned int length) {
-    /*
-    // In order to republish this payload, a copy must be made
-    // as the orignal payload buffer will be overwritten whilst
-    // constructing the PUBLISH packet.
-
-    // Allocate the correct amount of memory for the payload copy
-    byte* p = (byte*)malloc(length);
-    // Copy the payload to the new buffer
-    memcpy(p,payload,length);
-    mqttClient.publish(mqttTopic, p, length);
-    // Free the memory
-    free(p);
-    */
-}
-
 WiFiClient wifiClient;
-PubSubClient mqttClient = PubSubClient(mqttHost, mqttPort, PubSubCallback, wifiClient);
+PubSubClient mqttClient = PubSubClient(mqttHost, mqttPort, wifiClient);
 
 void ConnectToWifi() {
     WiFi.mode(WIFI_STA);
@@ -115,93 +151,34 @@ void ConnectToMqtt() {
     }
 }
 
-const int datetimeStringLength = 21;
-
-String GetDatetimeString() {
-    auto date = M5.Rtc.getDate();
-    auto time = M5.Rtc.getTime();
-
-    date.year = 2025;
-    date.month = 6;
-    date.date = 22;
-
-    // year
-    auto dateString = String(date.year);
-
-    // month
-    dateString = dateString + "-";
-    if (date.month < 10) {
-        dateString = dateString + "0";
-    }
-    dateString = dateString + String(date.month);
-
-    // day
-    dateString = dateString + "-";
-    if (date.date < 10) {
-        dateString = dateString + "0";
-    }
-    dateString = dateString + String(date.date);
-
-    // hour
-    dateString = dateString + "T";
-    if (time.hours < 10) {
-        dateString = dateString + "0";
-    }
-    dateString = dateString + String(time.hours);
-
-    // minute
-    dateString = dateString + ":";
-    if (time.minutes < 10) {
-        dateString = dateString + "0";
-    }
-    dateString = dateString + String(time.minutes);
-
-    // seconds
-    dateString = dateString + ":";
-    if (time.seconds < 10) {
-        dateString = dateString + "0";
-    }
-    dateString = dateString + String(time.seconds);
-
-    dateString = dateString + "Z";
-
-    return dateString;
-}
-
-void SendSensorPayloadToMqtt() {
-    Serial.println();
-    Serial.println("Attempting to send sensor data");
-
-    if (!mqttClient.connected()) {
-        Serial.println("Refusing to send sensor data as MQTT client is disconnected");
+void PerformNtpSync() {
+    if (!M5.Rtc.isEnabled()) {
+        Serial.println("RTC not found");
         return;
     }
+    
+    Serial.println("Found RTC");
+   
+    Serial.println("Attempting NTP synchronisation");
+
+    configTzTime("UTC", NTP_SERVER1, NTP_SERVER2, NTP_SERVER3);
+
+    while (sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED)
+    {
+      M5.delay(500);
+    }
+
+    Serial.println("NTP Connected");
+
+    // Advance one second.
+    time_t t = time(nullptr)+1;
+    // Synchronization in seconds
+    while (t > time(nullptr));
+    M5.Rtc.setDateTime(gmtime(&t));
 
     auto datetimeString = GetDatetimeString();
     Serial.print("Timestamp: ");
     Serial.println(datetimeString);
-
-    JsonDocument doc;
-    doc["timestamp"] = datetimeString;
-
-    //SHT4X
-    doc["SHT4X"]["temperature"]["value"] = sht4.cTemp;
-    doc["SHT4X"]["temperature"]["unit"] = "C";
-
-    doc["SHT4X"]["humidity"]["value"] = sht4.humidity;
-    doc["SHT4X"]["humidity"]["unit"] = "%";
-
-    doc["BMP280"]["temperature"]["value"] = bmp.cTemp;
-    doc["BMP280"]["temperature"]["unit"] = "C";
-
-    doc["BMP280"]["pressue"]["value"] = bmp.pressure;
-    doc["BMP280"]["pressue"]["unit"] = "Pa";
-
-    mqttClient.beginPublish(mqttTopic, measureJson(doc), false);
-    BufferingPrint bufferedClient(mqttClient, 32);
-    serializeJson(doc, bufferedClient);
-    bufferedClient.flush();
-    mqttClient.endPublish();
 }
 
 void setup() {
@@ -255,12 +232,50 @@ void setup() {
 
     ConnectToWifi();
 
+    PerformNtpSync();
+
     ConnectToMqtt();
 
     delay(1000);
 
     M5.Display.clear();
     M5.Display.setCursor(0,0);
+}
+
+void SendSensorPayloadToMqtt() {
+    Serial.println();
+    Serial.println("Attempting to send sensor data");
+
+    if (!mqttClient.connected()) {
+        Serial.println("Refusing to send sensor data as MQTT client is disconnected");
+        return;
+    }
+
+    auto datetimeString = GetDatetimeString();
+    Serial.print("Timestamp: ");
+    Serial.println(datetimeString);
+
+    JsonDocument doc;
+    doc["timestamp"] = datetimeString;
+
+    //SHT4X
+    doc["SHT4X"]["temperature"]["value"] = sht4.cTemp;
+    doc["SHT4X"]["temperature"]["unit"] = "C";
+
+    doc["SHT4X"]["humidity"]["value"] = sht4.humidity;
+    doc["SHT4X"]["humidity"]["unit"] = "%";
+
+    doc["BMP280"]["temperature"]["value"] = bmp.cTemp;
+    doc["BMP280"]["temperature"]["unit"] = "C";
+
+    doc["BMP280"]["pressue"]["value"] = bmp.pressure;
+    doc["BMP280"]["pressue"]["unit"] = "Pa";
+
+    mqttClient.beginPublish(mqttTopic, measureJson(doc), false);
+    BufferingPrint bufferedClient(mqttClient, 32);
+    serializeJson(doc, bufferedClient);
+    bufferedClient.flush();
+    mqttClient.endPublish();
 }
 
 void DisplayBattery() {
