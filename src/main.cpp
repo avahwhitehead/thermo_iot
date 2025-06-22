@@ -45,7 +45,7 @@ void PubSubCallback(char* topic, byte* payload, unsigned int length) {
     // In order to republish this payload, a copy must be made
     // as the orignal payload buffer will be overwritten whilst
     // constructing the PUBLISH packet.
-    
+
     // Allocate the correct amount of memory for the payload copy
     byte* p = (byte*)malloc(length);
     // Copy the payload to the new buffer
@@ -70,22 +70,21 @@ void ConnectToWifi() {
     M5.Display.print("Waiting for connection");
     while (WiFi.status() != WL_CONNECTED) {
         M5.Display.print('.');
-        delay(100);
+        delay(250);
     }
     M5.Display.println();
 
     M5.Display.println("Connected!");
-    
+
     M5.Display.print("IP: ");
     M5.Display.println(WiFi.localIP());
-    
+
     M5.Display.print("Signal strength: ");
     M5.Display.println(WiFi.RSSI());
-
-    delay(1000);
 }
+
 void ConnectToMqtt() {
-    delay(1000);
+    delay(500);
 
     Serial.print("Attempting to connect to WiFi client (");
     Serial.print(mqttHost);
@@ -98,14 +97,14 @@ void ConnectToMqtt() {
     } else {
         Serial.println("Failed to connect to WiFi client");
     }
-    
-    Serial.print("Attempting to connect to MQTT (");
-    Serial.print(mqttHost);
-    Serial.print(":");
-    Serial.print(mqttPort);
-    Serial.println(")");
-    
-    delay(1000);
+
+    delay(500);
+
+    Serial.println("Attempting to connect to MQTT");
+    Serial.print("Client id: ");
+    Serial.println(mqttClientId);
+    Serial.print("Username: ");
+    Serial.println(mqttUsername);
 
     if (mqttClient.connect(mqttClientId, mqttUsername, mqttPassword)) {
         Serial.println("Connected to MQTT");
@@ -116,12 +115,87 @@ void ConnectToMqtt() {
     }
 }
 
+const int datetimeStringLength = 21;
+
+String GetDatetimeString() {
+    auto date = M5.Rtc.getDate();
+    auto time = M5.Rtc.getTime();
+
+    date.year = 2025;
+    date.month = 6;
+    date.date = 22;
+
+    // year
+    auto dateString = String(date.year);
+
+    // month
+    dateString = dateString + "-";
+    if (date.month < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(date.month);
+
+    // day
+    dateString = dateString + "-";
+    if (date.date < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(date.date);
+
+    // hour
+    dateString = dateString + "T";
+    if (time.hours < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(time.hours);
+
+    // minute
+    dateString = dateString + ":";
+    if (time.minutes < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(time.minutes);
+
+    // seconds
+    dateString = dateString + ":";
+    if (time.seconds < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(time.seconds);
+
+    dateString = dateString + "Z";
+
+    return dateString;
+}
+
 void SendSensorPayloadToMqtt() {
+    Serial.println();
+    Serial.println("Attempting to send sensor data");
+
+    if (!mqttClient.connected()) {
+        Serial.println("Refusing to send sensor data as MQTT client is disconnected");
+        return;
+    }
+
+    auto datetimeString = GetDatetimeString();
+    Serial.print("Timestamp: ");
+    Serial.println(datetimeString);
+
     JsonDocument doc;
-    doc["temp_sht"] = sht4.cTemp;
-    doc["temp_bmp"] = bmp.cTemp;
-    doc["humidity"] = sht4.humidity;
-    doc["pressure"] = bmp.pressure;
+    doc["timestamp"] = datetimeString;
+
+    //SHT4X
+    doc["SHT4X"]["temperature"]["value"] = sht4.cTemp;
+    doc["SHT4X"]["temperature"]["unit"] = "C";
+
+    doc["SHT4X"]["humidity"]["value"] = sht4.humidity;
+    doc["SHT4X"]["humidity"]["unit"] = "%";
+
+    doc["BMP280"]["temperature"]["value"] = bmp.cTemp;
+    doc["BMP280"]["temperature"]["unit"] = "C";
+
+    doc["BMP280"]["pressue"]["value"] = bmp.pressure;
+    doc["BMP280"]["pressue"]["unit"] = "Pa";
 
     mqttClient.beginPublish(mqttTopic, measureJson(doc), false);
     BufferingPrint bufferedClient(mqttClient, 32);
@@ -136,7 +210,7 @@ void setup() {
     M5.begin(cfg);
 
     M5.Display.setTextSize(2);
-    
+
     Serial.begin(115200);
     Serial.flush();
 
@@ -157,7 +231,7 @@ void setup() {
     // You can have 3 different precisions, higher precision takes longer
     sht4.setPrecision(SHT4X_HIGH_PRECISION);
     sht4.setHeater(SHT4X_NO_HEATER);
-    
+
     if (!bmp.begin(&Wire, BMP280_I2C_ADDR, 32, 33, 400000U)) {
         Serial.println("Couldn't find BMP280");
         M5.Display.println("Couldn't find BMP280");
@@ -165,7 +239,7 @@ void setup() {
         M5.Power.powerOff();
         return;
     }
-    
+
     /* Default settings from datasheet. */
     bmp.setSampling(
         BMP280::MODE_NORMAL,     /* Operating Mode. */
@@ -182,6 +256,8 @@ void setup() {
     ConnectToWifi();
 
     ConnectToMqtt();
+
+    delay(1000);
 
     M5.Display.clear();
     M5.Display.setCursor(0,0);
@@ -232,8 +308,21 @@ void DisplayWiFi() {
 
 void DisplayStatusBar() {
     DisplayWiFi();
-    
+
     DisplayBattery();
+}
+
+void DisplayLowerStatusBar() {
+    M5.Display.print("WiFi Client: ");
+    if (wifiClient.connected()) {
+        M5.Display.print("Connected");
+    } else {
+        M5.Display.print("Failed   ");
+    }
+
+    M5.Display.print("   ");
+    M5.Display.print("MQTT Client: ");
+    M5.Display.print(mqttClient.state());
 }
 
 void WriteToSerial() {
@@ -264,7 +353,7 @@ void WriteToSerial() {
 
 void WriteToDisplay() {
     M5.Display.setCursor(0, 0);
-    
+
     M5.Display.setTextSize(1);
     DisplayStatusBar();
 
@@ -284,7 +373,7 @@ void WriteToDisplay() {
     M5.Display.setTextSize(1);
     M5.Display.println("Temperature (SHT4 - BMP)");
     M5.Display.println();
-    
+
     // ========
     // Humidity
     // ========
@@ -296,7 +385,7 @@ void WriteToDisplay() {
     M5.Display.setTextSize(1);
     M5.Display.println("Humidity");
     M5.Display.println();
-    
+
     // ========
     // Pressure
     // ========
@@ -306,13 +395,16 @@ void WriteToDisplay() {
     M5.Display.print("atm");
 
     M5.Display.print(" | ");
-    
+
     M5.Display.print(int(bmp.pressure));
     M5.Display.println("Pa");
-    
+
     M5.Display.setTextSize(1);
     M5.Display.println("Pressure");
-    
+
+    M5.Display.setTextSize(1);
+    DisplayLowerStatusBar();
+
     // ========
     // Altitude
     // ========
