@@ -274,8 +274,6 @@ void DisplayBattery() {
     if (isCharging) {
         M5.Display.print("(C)");
     }
-    
-    M5.Display.println();
 }
 
 bool isWifiConnected = false;
@@ -412,8 +410,10 @@ void DisplayStatusBar() {
     DisplayBattery();
 
     M5.Display.println();
-
+    
     DisplayWiFi();
+    
+    M5.Display.println();
 }
 
 void DisplayLowerStatusBar() {
