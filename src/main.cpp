@@ -1,3 +1,9 @@
+/* TODO:
+ * Set up grafana
+ * Rename the metric on indexdb to something other than "mymetric"
+ * Update doc coment
+*/
+
 /**
  * @file ENV_IV.ino
  * @author SeanKwok (shaoxiang@m5stack.com)
@@ -87,6 +93,53 @@ String GetDatetimeString() {
     return dateString;
 }
 
+String GetHumanReadableDatetimeString() {
+    auto date = M5.Rtc.getDate();
+    auto time = M5.Rtc.getTime();
+    
+    auto dateString = String();
+
+    // day
+    if (date.date < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(date.date);
+
+    // month
+    dateString = dateString + "/";
+    if (date.month < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(date.month);
+
+    // year
+    dateString = dateString + "/" + String(date.year);
+
+
+    // hour
+    dateString = dateString + " ";
+    if (time.hours < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(time.hours);
+
+    // minute
+    dateString = dateString + ":";
+    if (time.minutes < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(time.minutes);
+
+    // seconds
+    dateString = dateString + ":";
+    if (time.seconds < 10) {
+        dateString = dateString + "0";
+    }
+    dateString = dateString + String(time.seconds);
+
+    return dateString;
+}
+
 
 SHT4X sht4;
 BMP280 bmp;
@@ -94,48 +147,7 @@ BMP280 bmp;
 WiFiClient wifiClient;
 PubSubClient mqttClient = PubSubClient(mqttHost, mqttPort, wifiClient);
 
-void ConfigureWiFi() {
-    WiFi.mode(WIFI_STA);
-
-    WiFi.setHostname("Thermo_iot");
-}
-
 bool isMqttConnected = false;
-
-void ConnectToMqtt() {
-    delay(500);
-
-    Serial.print("Attempting to connect to WiFi client (");
-    Serial.print(mqttHost);
-    Serial.print(":");
-    Serial.print(mqttPort);
-    Serial.println(")");
-
-    if (wifiClient.connect(mqttHost, mqttPort)) {
-        Serial.println("Connected to WiFi client");
-    } else {
-        Serial.println("Failed to connect to WiFi client");
-    }
-
-    delay(500);
-
-    Serial.println("Attempting to connect to MQTT");
-    Serial.print("Client id: ");
-    Serial.println(mqttClientId);
-    Serial.print("Username: ");
-    Serial.println(mqttUsername);
-
-    if (mqttClient.connect(mqttClientId, mqttUsername, mqttPassword)) {
-        Serial.println("Connected to MQTT");
-        isMqttConnected = true;
-        return;
-    }
-
-    Serial.println("Failed to connect to MQTT");
-    Serial.print("rc=");
-    Serial.println(mqttClient.state());
-
-}
 
 void setup() {
     auto cfg = M5.config();
@@ -175,24 +187,19 @@ void setup() {
 
     /* Default settings from datasheet. */
     bmp.setSampling(
-        BMP280::MODE_NORMAL,     /* Operating Mode. */
-        BMP280::SAMPLING_X2,     /* Temp. oversampling */
-        BMP280::SAMPLING_X16,    /* Pressure oversampling */
-        BMP280::FILTER_X16,      /* Filtering. */
-        BMP280::STANDBY_MS_500); /* Standby time. */
+        // Operating Mode.
+        BMP280::MODE_NORMAL,
+        // Temp. oversampling.
+        BMP280::SAMPLING_X2,
+        // Pressure oversampling.
+        BMP280::SAMPLING_X16,
+        // Filtering.
+        BMP280::FILTER_X16,
+        // Standby time.
+        BMP280::STANDBY_MS_500
+    );
 
     M5.Display.setRotation(1);
-
-    M5.Display.clear();
-    M5.Display.setCursor(0,0);
-
-    ConfigureWiFi();
-
-    // PerformNtpSync();
-
-    // ConnectToMqtt();
-
-    // delay(1000);
 
     M5.Display.clear();
     M5.Display.setCursor(0,0);
@@ -234,17 +241,9 @@ void SendSensorPayloadToMqtt() {
     mqttClient.endPublish();
 }
 
+int batteryDisplayLength = 7;
 void DisplayBattery() {
     int batteryLevel = M5.Power.getBatteryLevel();
-
-    int displayWidthPixels = M5.Display.width();
-    int characterWidthPixels = M5.Display.fontWidth();
-
-    // Offset by 3 for the maximum battery length
-    // Offset by 1 for the percent sign
-    // Offset by 3 for the charging indicator
-    auto newCursorX = displayWidthPixels - (7 * characterWidthPixels);
-    M5.Display.setCursor(newCursorX, 0);
 
     bool isCharging = false;
     if (!M5.Power.charge_unknown) {
@@ -277,7 +276,8 @@ void DisplayBattery() {
 
 bool isWifiConnected = false;
 
-void DisplayWiFi() {
+const int wifiDisplayLength = 22;
+void UpdateAndDisplayWiFiStatus() {
     auto status = WiFi.status();
 
     if (status == WL_CONNECTED) {
@@ -294,44 +294,53 @@ void DisplayWiFi() {
             isWifiConnected = true;
         }
 
+        // Print 22 characters to fully clear the old IP and RSSI
+        auto oldCursorX = M5.Display.getCursorX();
+        auto oldCursorY = M5.Display.getCursorY();
+        M5.Display.print("                      ");
+        M5.Display.setCursor(oldCursorX, oldCursorY);
+
         M5.Display.print(localIp);
         M5.Display.print(" (");
         M5.Display.print(rssi);
         M5.Display.print(')');
+        
+        int characterWidthPixels = M5.Display.fontWidth();
+        M5.Display.setCursor(oldCursorX + (wifiDisplayLength * characterWidthPixels), oldCursorY);
         return;
     }
 
     // WiFi is not connected - flag it
     isWifiConnected = false;
-
-    M5.Display.print("                   ");
-
+    
+    M5.Display.print("WiFi: ");
     if (status == WL_NO_SHIELD) {
         Serial.println("No WiFi Shield");
-        M5.Display.print("No WiFi Shield");
+        M5.Display.print("No Shield       ");
     } else if (status == WL_IDLE_STATUS) {
         Serial.println("WiFi Idle");
-        M5.Display.print("Idle");
+        M5.Display.print("Idle            ");
     } else if (status == WL_NO_SSID_AVAIL) {
         Serial.println("WiFi No SSID");
-        M5.Display.print("No SSID");
+        M5.Display.print("No SSID         ");
     } else if (status == WL_SCAN_COMPLETED) {
         Serial.println("WiFi Scan Complete");
-        M5.Display.print("Scan Complete");
+        M5.Display.print("Scan Complete   ");
     } else if (status == WL_CONNECT_FAILED) {
-        Serial.println("WiFi Connect Failed");
-        M5.Display.print("Connect Failed");
+        Serial.println("WiFi Connection Failed");
+        M5.Display.print("Connect Failed  ");
     } else if (status == WL_CONNECTION_LOST) {
-        Serial.println("WiFi Lost");
-        M5.Display.print("Connect Lost");
+        Serial.println("WiFi Connection Lost");
+        M5.Display.print("Connection Lost ");
     } else if (status == WL_DISCONNECTED) {
         Serial.println("WiFi Disconnected");
-        M5.Display.print("Disconnected");
+        M5.Display.print("Disconnected    ");
     }
 
     Serial.println("Attempting to connect to WiFi");
-    
-    M5.Display.print("(connecting)");
+
+    WiFi.mode(WIFI_STA);
+    WiFi.setHostname("Thermo_iot");
     
     WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
     WiFi.begin(ssid, password);
@@ -340,21 +349,21 @@ void DisplayWiFi() {
 bool hasRtcSyncStarted = false;
 bool hasRtcSynced = false;
 
-void DisplayTime() {
+int timestampDisplayCharacters = 20;
+void UpdateAndDisplayTime() {
     if (hasRtcSynced) {
-        auto timestamp = GetDatetimeString();
+        auto timestamp = GetHumanReadableDatetimeString();
         M5.Display.print(timestamp);
         return;
     }
-
-    // if (!M5.Rtc.isEnabled()) {
-    //     Serial.println("RTC not found");
-    //     M5.Display.print("RTC not found");
-    //     return;
-    // }
     
     if (!isWifiConnected) {
         Serial.println("NTP Sync skipped: No WiFi");
+
+        auto timestamp = GetHumanReadableDatetimeString();
+        M5.Display.print(timestamp);
+        M5.Display.print('*');
+
         return;
     }
 
@@ -365,7 +374,7 @@ void DisplayTime() {
 
     // Is the sync ongoing?
     if (hasRtcSyncStarted || status == SNTP_SYNC_STATUS_IN_PROGRESS) {
-        auto timestamp = GetDatetimeString();
+        auto timestamp = GetHumanReadableDatetimeString();
         M5.Display.print(timestamp);
         M5.Display.print('*');
         return;
@@ -382,7 +391,7 @@ void DisplayTime() {
         
         Serial.println("NTP sync completed");
         
-        auto timestamp = GetDatetimeString();
+        auto timestamp = GetHumanReadableDatetimeString();
         Serial.print("Current Time: ");
         Serial.println(timestamp);
         
@@ -398,34 +407,155 @@ void DisplayTime() {
     
     configTzTime("UTC", NTP_SERVER1, NTP_SERVER2, NTP_SERVER3);
 
-    auto timestamp = GetDatetimeString();
+    auto timestamp = GetHumanReadableDatetimeString();
     M5.Display.print(timestamp);
     M5.Display.print('*');
 }
 
 void DisplayStatusBar() {
-    DisplayTime();
+    int displayWidthPixels = M5.Display.width();
+    int characterWidthPixels = M5.Display.fontWidth();
+    int centralSpace = (displayWidthPixels / characterWidthPixels) - (timestampDisplayCharacters + batteryDisplayLength);
+    
+    UpdateAndDisplayTime();
+
+    for (int i = 0; i < centralSpace; i++) { 
+        M5.Display.print(' ');
+    }
 
     DisplayBattery();
 
     M5.Display.println();
     
-    DisplayWiFi();
-    
+    UpdateAndDisplayWiFiStatus();
+
     M5.Display.println();
 }
 
-void DisplayLowerStatusBar() {
-    M5.Display.print("WiFi Client: ");
-    if (wifiClient.connected()) {
-        M5.Display.print("Connected");
-    } else {
-        M5.Display.print("Failed   ");
+bool isWifiClientConnected = false;
+
+const int wifiClientDisplayLength = 16;
+void UpdateAndDisplayWiFiClientStatus() {
+    M5.Display.print("WiFi: ");
+
+    isWifiClientConnected = wifiClient.connected();
+
+    if (isWifiClientConnected) {
+        M5.Display.print("Connected!");
+        return;
+    }
+    
+    if (!isWifiConnected) {
+        M5.Display.print("Waiting...");
+        Serial.println("Refusing to connect to WiFi client; WiFi not connected.");
+        return;
     }
 
-    M5.Display.print("   ");
-    M5.Display.print("MQTT Client: ");
-    M5.Display.print(mqttClient.state());
+    Serial.print("Attempting to connect to WiFi client (");
+    Serial.print(mqttHost);
+    Serial.print(":");
+    Serial.print(mqttPort);
+    Serial.println(")");
+
+    if (wifiClient.connect(mqttHost, mqttPort)) {
+        Serial.println("Connected to WiFi client");
+        M5.Display.print("Connected!");
+        
+        isWifiClientConnected = true;
+    } else {
+        Serial.println("Failed to connect to WiFi client");
+        M5.Display.print("Failed    ");
+
+        isWifiClientConnected = false;
+    }
+}
+
+bool isMqttClientConnected = false;
+
+const int mqttClientDisplayLength = 20;
+void UpdateAndDisplayMqttClientStatus() {
+    M5.Display.print("MQTT: ");
+    
+    auto state = mqttClient.state();
+    
+    if (state == MQTT_CONNECTED) {
+        isMqttClientConnected = true;
+        M5.Display.print("Connected!  ");
+        return;
+    }
+    
+    if (!isWifiClientConnected) {
+        M5.Display.print("Waiting...  ");
+        Serial.println("Refusing to connect to MQTT client; WiFi Client not connected.");
+        return;
+    }
+    
+    if (!hasRtcSynced) {
+        M5.Display.print("Waiting...  ");
+        Serial.println("Refusing to connect to MQTT client; RTC not synced.");
+        return;
+    }
+
+    if (state == MQTT_CONNECTION_TIMEOUT) {
+        Serial.println("MQTT state: MQTT_CONNECTION_TIMEOUT");
+        M5.Display.print("Timeout     ");
+    }
+    if (state == MQTT_CONNECTION_LOST) {
+        Serial.println("MQTT state: MQTT_CONNECTION_LOST");
+        M5.Display.print("Conn Lost   ");
+    }
+    if (state == MQTT_CONNECT_FAILED) {
+        Serial.println("MQTT state: MQTT_CONNECT_FAILED");
+        M5.Display.print("Failed      ");
+    }
+    if (state == MQTT_DISCONNECTED) {
+        Serial.println("MQTT state: MQTT_DISCONNECTED");
+        M5.Display.print("Disconnected");
+    }
+    if (state == MQTT_CONNECT_BAD_PROTOCOL) {
+        Serial.println("MQTT state: MQTT_CONNECT_BAD_PROTOCOL");
+        M5.Display.print("Bad protocol");
+    }
+    if (state == MQTT_CONNECT_BAD_CLIENT_ID) {
+        Serial.println("MQTT state: MQTT_CONNECT_BAD_CLIENT_ID");
+        M5.Display.print("Bad clientId");
+    }
+    if (state == MQTT_CONNECT_UNAVAILABLE) {
+        Serial.println("MQTT state: MQTT_CONNECT_UNAVAILABLE");
+        M5.Display.print("Unavailable ");
+    }
+    if (state == MQTT_CONNECT_BAD_CREDENTIALS) {
+        Serial.println("MQTT state: MQTT_CONNECT_BAD_CREDENTIALS");
+        M5.Display.print("Bad login   ");
+    }
+    if (state == MQTT_CONNECT_UNAUTHORIZED) {
+        Serial.println("MQTT state: MQTT_CONNECT_UNAUTHORIZED");
+        M5.Display.print("Unauthorized");
+    }
+
+    Serial.println("Attempting to connect to MQTT");
+    Serial.print("Client id: ");
+    Serial.println(mqttClientId);
+    Serial.print("Username: ");
+    Serial.println(mqttUsername);
+
+    mqttClient.connect(mqttClientId, mqttUsername, mqttPassword);
+}
+
+void DisplayLowerStatusBar() {
+    M5.Display.println();
+
+    int displayWidthPixels = M5.Display.width();
+    int characterWidthPixels = M5.Display.fontWidth();
+    int centralSpace = (displayWidthPixels / characterWidthPixels) - (mqttClientDisplayLength + wifiClientDisplayLength);
+    
+    UpdateAndDisplayWiFiClientStatus();
+
+    for (int i = 0; i < centralSpace; i++) { 
+        M5.Display.print(' ');
+    }
+    
+    UpdateAndDisplayMqttClientStatus();
 }
 
 void WriteToSerial() {
@@ -443,11 +573,11 @@ void WriteToSerial() {
     Serial.print(sht4.humidity);
     Serial.println("% rH");
 
-    Serial.print(F("Pressure: "));
+    Serial.print("Pressure: ");
     Serial.print(bmp.pressure);
     Serial.println(" Pa");
 
-    Serial.print(F("Approx altitude: "));
+    Serial.print("Approx altitude: ");
     Serial.print(bmp.altitude);
     Serial.println(" m");
 
@@ -459,6 +589,7 @@ void WriteToDisplay() {
 
     M5.Display.setTextSize(1);
     DisplayStatusBar();
+    M5.Display.println();
 
     // ========
     // Temperature
@@ -472,7 +603,6 @@ void WriteToDisplay() {
     M5.Display.println("C");
 
     M5.Display.setTextSize(1);
-    M5.Display.println("Temperature (SHT4 - BMP)");
     M5.Display.println();
 
     // ========
@@ -481,10 +611,9 @@ void WriteToDisplay() {
 
     M5.Display.setTextSize(3);
     M5.Display.print(sht4.humidity);
-    M5.Display.println("%");
+    M5.Display.println("% RH");
 
     M5.Display.setTextSize(1);
-    M5.Display.println("Humidity");
     M5.Display.println();
 
     // ========
@@ -501,9 +630,9 @@ void WriteToDisplay() {
     M5.Display.println("Pa");
 
     M5.Display.setTextSize(1);
-    M5.Display.println("Pressure");
+    
+    M5.Display.println();
 
-    M5.Display.setTextSize(1);
     DisplayLowerStatusBar();
 
     // ========
@@ -532,10 +661,6 @@ void loop() {
     WriteToSerial();
 
     WriteToDisplay();
-
-    if (isWifiConnected && hasRtcSynced && !isMqttConnected) {
-        ConnectToMqtt();
-    }
 
     if (++loopCount >= 10) {
         SendSensorPayloadToMqtt();
