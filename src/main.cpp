@@ -354,6 +354,7 @@ void UpdateAndDisplayTime() {
     if (hasRtcSynced) {
         auto timestamp = GetHumanReadableDatetimeString();
         M5.Display.print(timestamp);
+        M5.Display.print(' ');
         return;
     }
     
@@ -362,7 +363,7 @@ void UpdateAndDisplayTime() {
 
         auto timestamp = GetHumanReadableDatetimeString();
         M5.Display.print(timestamp);
-        M5.Display.print('*');
+        M5.Display.print('?');
 
         return;
     }
