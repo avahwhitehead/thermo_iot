@@ -207,12 +207,13 @@ void setup() {
 
 void SendSensorPayloadToMqtt() {
     Serial.println();
-    Serial.println("Attempting to send sensor data");
 
     if (!mqttClient.connected()) {
         Serial.println("Refusing to send sensor data as MQTT client is disconnected");
         return;
     }
+
+    Serial.println("Attempting to send sensor data");
 
     auto datetimeString = GetDatetimeString();
     Serial.print("Timestamp: ");
@@ -220,6 +221,8 @@ void SendSensorPayloadToMqtt() {
 
     JsonDocument doc;
     doc["timestamp"] = datetimeString;
+
+    doc["device"]["name"] = SECRET_MQTT_DEVICE_NAME;
 
     //SHT4X
     doc["SHT4X"]["temperature"]["value"] = sht4.cTemp;
@@ -238,7 +241,14 @@ void SendSensorPayloadToMqtt() {
     BufferingPrint bufferedClient(mqttClient, 32);
     serializeJson(doc, bufferedClient);
     bufferedClient.flush();
-    mqttClient.endPublish();
+    
+    if (mqttClient.endPublish()) {
+        Serial.println("Sensor data sent successfully.");
+    } else {
+        auto writeError = mqttClient.getWriteError();
+        Serial.print("Failed to send sensor data with write error: ");
+        Serial.println(writeError);
+    }
 }
 
 int batteryDisplayLength = 7;
