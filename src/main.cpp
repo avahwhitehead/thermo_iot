@@ -1,4 +1,3 @@
-
 /**
  * @file ENV_IV.ino
  * @author SeanKwok (shaoxiang@m5stack.com)
@@ -225,8 +224,8 @@ void SendSensorPayloadToMqtt() {
     doc["BMP280"]["temperature"]["value"] = bmp.cTemp;
     doc["BMP280"]["temperature"]["unit"] = "C";
 
-    doc["BMP280"]["pressue"]["value"] = bmp.pressure;
-    doc["BMP280"]["pressue"]["unit"] = "Pa";
+    doc["BMP280"]["pressure"]["value"] = bmp.pressure;
+    doc["BMP280"]["pressure"]["unit"] = "Pa";
 
     mqttClient.beginPublish(mqttTopic, measureJson(doc), false);
     BufferingPrint bufferedClient(mqttClient, 32);
