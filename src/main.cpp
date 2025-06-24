@@ -673,7 +673,7 @@ void loop() {
 
     WriteToDisplay();
 
-    if (++loopCount >= 10) {
+    if (++loopCount >= 30) {
         SendSensorPayloadToMqtt();
         loopCount = 0;
     }
