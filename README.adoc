@@ -1,6 +1,19 @@
 = Thermo IOT
 
+== Hardware
+
+* link:https://thepihut.com/products/m5stickc-plus2-esp32-mini-iot-development-kit[M5 StickC Plus2]
+
+* link:https://thepihut.com/products/env-iv-unit-with-temperature-humidity-air-pressure-sensor-sht40-bmp280[M5Stack ENV IV Unit]
+
 == Installation
+
+=== Pre-requisites
+
+* VS Code
+* Platform IO
+
+=== Code Installation
 
 Create a `secrets.h` file in the `src/` directory:
 
@@ -20,3 +33,16 @@ Create a `secrets.h` file in the `src/` directory:
 #define SECRET_MQTT_USER "MQTT User"
 #define SECRET_MQTT_PASS "MQTT Password"
 ----
+
+=== Software Setup
+
+Install the following:
+
+* link:https://hub.docker.com/_/eclipse-mosquitto[Mosquitto]
+* link:https://hub.docker.com/_/telegraf[Telegraf]
+* link:https://hub.docker.com/_/influxdb[InfluxDb]
+
+I found link:https://www.reddit.com/r/unRAID/comments/7c2l2w/howto_monitor_unraid_with_grafana_influxdb_and/[this Reddit tutorial] invaluable for configuration.
+
+Use the link:./telegraf.conf[telegraf.conf] file as the Telegraf config.
+You will need to swap out the configuration variables (marked as `+{{NAME}}+`) in the file for their respective strings.
