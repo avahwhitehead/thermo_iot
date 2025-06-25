@@ -1,23 +1,3 @@
-/* TODO:
- * Set up grafana
- * Rename the metric on indexdb to something other than "mymetric"
- * Update doc coment
-*/
-
-/**
- * @file ENV_IV.ino
- * @author SeanKwok (shaoxiang@m5stack.com)
- * @brief 
- * @version 0.1
- * @date 2024-01-30
- *
- *
- * @Hardwares: M5Core + Unit ENV_IV
- * @Platform Version: Arduino M5Stack Board Manager v2.1.0
- * @Dependent Library:
- * M5UnitENV: https://github.com/m5stack/M5Unit-ENV
- */
-
 #include <string>
 
 #include <ArduinoJson.h>
