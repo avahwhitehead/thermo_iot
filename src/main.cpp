@@ -123,14 +123,30 @@ String GetHumanReadableDatetimeString() {
 
 SHT4X sht4;
 BMP280 bmp;
+SCD4X scd4x;
 
 bool isSht4xInitialised = false;
+bool isScd4xInitialised = false;
 bool isBmp280Initialised = false;
 
 void InitialiseSht4() {
     // You can have 3 different precisions, higher precision takes longer
     sht4.setPrecision(SHT4X_HIGH_PRECISION);
     sht4.setHeater(SHT4X_NO_HEATER);
+}
+
+bool TryInitialiseSht4x() {
+    if (!sht4.begin(&Wire, SHT40_I2C_ADDR_44, 32, 33, 400000U)) {
+        Serial.println("Couldn't find SHT4x sensor");
+        
+        return false;
+    }
+    
+    Serial.println("Found SHT4x sensor");
+
+    InitialiseSht4();
+
+    return true;
 }
 
 void InitialiseBmp280() {
@@ -149,20 +165,6 @@ void InitialiseBmp280() {
     );
 }
 
-bool TryInitialiseSht4x() {
-    if (!sht4.begin(&Wire, SHT40_I2C_ADDR_44, 32, 33, 400000U)) {
-        Serial.println("Couldn't find SHT4x sensor");
-        
-        return false;
-    }
-    
-    Serial.println("Found SHT4x sensor");
-
-    InitialiseSht4();
-
-    return true;
-}
-
 bool TryInitialiseBmp280() {
     if (!bmp.begin(&Wire, BMP280_I2C_ADDR, 32, 33, 400000U)) {
         Serial.println("Couldn't find BMP280 sensor");
@@ -173,6 +175,40 @@ bool TryInitialiseBmp280() {
     Serial.println("Found BMP280 sensor");
 
     InitialiseBmp280();
+
+    return true;
+}
+
+void InitialiseScd4x() {
+    uint16_t error;
+    // stop potentially previously started measurement
+    error = scd4x.stopPeriodicMeasurement();
+    if (error) {
+        Serial.print("Error trying to execute stopPeriodicMeasurement(): ");
+    }
+    
+    // Start Measurement
+    error = scd4x.startPeriodicMeasurement();
+    if (error) {
+        Serial.print("Error trying to execute startPeriodicMeasurement(): ");
+        Serial.println(error);
+    }
+
+    if (!scd4x.begin(&Wire, SCD4X_I2C_ADDR, 32, 33, 400000U)) {
+        Serial.println("Couldn't find SCD4X");
+        while (1) delay(1);
+    }
+}
+
+bool TryInitialiseScd4x() {
+    if (!scd4x.begin(&Wire, SCD4X_I2C_ADDR, 32, 33, 400000U)) {
+        Serial.println("Couldn't find SCD4X sensor");
+        return false;
+    }
+
+    Serial.println("Found SCD4X sensor");
+
+    InitialiseScd4x();
 
     return true;
 }
@@ -199,6 +235,8 @@ void setup() {
     isSht4xInitialised = TryInitialiseSht4x();
 
     isBmp280Initialised = TryInitialiseBmp280();
+
+    isScd4xInitialised = TryInitialiseScd4x();
 
     M5.Display.setRotation(1);
     M5.Display.clear();
@@ -238,6 +276,17 @@ void SendSensorPayloadToMqtt() {
         
         doc["BMP280"]["pressure"]["value"] = bmp.pressure;
         doc["BMP280"]["pressure"]["unit"] = "Pa";
+    }
+    
+    if (isScd4xInitialised) {
+        doc["SCD4X"]["temperature"]["value"] = scd4x.getTemperature();
+        doc["SCD4X"]["temperature"]["unit"] = "C";
+        
+        doc["SCD4X"]["humidity"]["value"] = scd4x.getHumidity();
+        doc["SCD4X"]["humidity"]["unit"] = "%";
+        
+        doc["SCD4X"]["CO2"]["value"] = scd4x.getCO2();
+        doc["SCD4X"]["CO2"]["unit"] = "ppm";
     }
 
     mqttClient.beginPublish(mqttTopic, measureJson(doc), false);
@@ -576,31 +625,41 @@ void WriteToSerial() {
     Serial.println("----------------");
 
     if (isSht4xInitialised) {
-        Serial.print("Temp (SHT40): ");
+        Serial.print("Temp (SHT4X): ");
         Serial.print(sht4.cTemp);
         Serial.println("C");
+        
+        Serial.print("Humidity (SHT4X): ");
+        Serial.print(sht4.humidity);
+        Serial.println("% RH");
     }
 
     if (isBmp280Initialised) {
         Serial.print("Temp (BMP280): ");
         Serial.print(bmp.cTemp);
         Serial.println("C");
-    }
 
-    if (isSht4xInitialised) {
-        Serial.print("Humidity: ");
-        Serial.print(sht4.humidity);
-        Serial.println("% rH");
-    }
-
-    if (isBmp280Initialised) {
         Serial.print("Pressure: ");
         Serial.print(bmp.pressure);
-        Serial.println(" Pa");
+        Serial.println("Pa");
 
         Serial.print("Approx altitude: ");
         Serial.print(bmp.altitude);
-        Serial.println(" m");
+        Serial.println("m");
+    }
+
+    if (isScd4xInitialised) {
+        Serial.print("Temp (SCD4X): ");
+        Serial.print(scd4x.getTemperature());
+        Serial.println("C");
+        
+        Serial.print("C02: ");
+        Serial.print(scd4x.getCO2());
+        Serial.println("ppm");
+        
+        Serial.print("Humidity: ");
+        Serial.print(scd4x.getHumidity());
+        Serial.println("% RH");
     }
 
     Serial.println("----------------");
@@ -645,9 +704,9 @@ void WriteToDisplay() {
     M5.Display.setTextSize(3);
     if (isSht4xInitialised) {
         M5.Display.print(sht4.humidity);
-        M5.Display.println("% RH");
+        M5.Display.println("% RH ");
     } else {
-        M5.Display.println("N/A       ");
+        M5.Display.println("N/A        ");
     }
 
     M5.Display.setTextSize(1);
@@ -658,21 +717,26 @@ void WriteToDisplay() {
     // ========
 
     M5.Display.setTextSize(2);
-    if (isBmp280Initialised) {
+    if (isScd4xInitialised) {
+        M5.Display.print(scd4x.getCO2());
+        M5.Display.println("ppm      ");
+    } else {
+        M5.Display.println("N/A   ppm");
+    }
+    M5.Display.println(" ");
 
-        M5.Display.print(bmp.pressure / 101325);
-        M5.Display.print("atm");
-        
-        M5.Display.print(" | ");
-        
+    // M5.Display.setTextSize(1);
+    // M5.Display.println();
+
+    M5.Display.setTextSize(2);
+    if (isBmp280Initialised) {
         M5.Display.print(int(bmp.pressure));
         M5.Display.println("Pa ");
     } else {
-        M5.Display.println("                  Pa");
+        M5.Display.println("N/A   Pa");
     }
 
     M5.Display.setTextSize(1);
-    
     M5.Display.println();
 
     DisplayLowerStatusBar();
@@ -709,6 +773,13 @@ void loop() {
         sht4.update();
     } else {
         isSht4xInitialised = TryInitialiseSht4x();
+    }
+
+    if (isScd4xInitialised) {
+        //TODO: Handle case this is unplugged
+        scd4x.update();
+    } else {
+        isScd4xInitialised = TryInitialiseSht4x();
     }
 
     WriteToSerial();
