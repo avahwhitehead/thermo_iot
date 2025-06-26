@@ -124,6 +124,59 @@ String GetHumanReadableDatetimeString() {
 SHT4X sht4;
 BMP280 bmp;
 
+bool isSht4xInitialised = false;
+bool isBmp280Initialised = false;
+
+void InitialiseSht4() {
+    // You can have 3 different precisions, higher precision takes longer
+    sht4.setPrecision(SHT4X_HIGH_PRECISION);
+    sht4.setHeater(SHT4X_NO_HEATER);
+}
+
+void InitialiseBmp280() {
+    /* Default settings from datasheet. */
+    bmp.setSampling(
+        // Operating Mode.
+        BMP280::MODE_NORMAL,
+        // Temp. oversampling.
+        BMP280::SAMPLING_X2,
+        // Pressure oversampling.
+        BMP280::SAMPLING_X16,
+        // Filtering.
+        BMP280::FILTER_X16,
+        // Standby time.
+        BMP280::STANDBY_MS_500
+    );
+}
+
+bool TryInitialiseSht4x() {
+    if (!sht4.begin(&Wire, SHT40_I2C_ADDR_44, 32, 33, 400000U)) {
+        Serial.println("Couldn't find SHT4x sensor");
+        
+        return false;
+    }
+    
+    Serial.println("Found SHT4x sensor");
+
+    InitialiseSht4();
+
+    return true;
+}
+
+bool TryInitialiseBmp280() {
+    if (!bmp.begin(&Wire, BMP280_I2C_ADDR, 32, 33, 400000U)) {
+        Serial.println("Couldn't find BMP280 sensor");
+        
+        return false;
+    }
+    
+    Serial.println("Found BMP280 sensor");
+
+    InitialiseBmp280();
+
+    return true;
+}
+
 WiFiClient wifiClient;
 PubSubClient mqttClient = PubSubClient(mqttHost, mqttPort, wifiClient);
 
@@ -143,44 +196,11 @@ void setup() {
 
     Wire.begin();
 
-    if (!sht4.begin(&Wire, SHT40_I2C_ADDR_44, 32, 33, 400000U)) {
-        Serial.println("Couldn't find SHT4x");
-        M5.Display.println("Couldn't find SHT4x");
-        delay(2000);
-        M5.Power.powerOff();
-        return;
-    }
+    isSht4xInitialised = TryInitialiseSht4x();
 
-    Serial.println("Found SHT4x sensor");
-
-    // You can have 3 different precisions, higher precision takes longer
-    sht4.setPrecision(SHT4X_HIGH_PRECISION);
-    sht4.setHeater(SHT4X_NO_HEATER);
-
-    if (!bmp.begin(&Wire, BMP280_I2C_ADDR, 32, 33, 400000U)) {
-        Serial.println("Couldn't find BMP280");
-        M5.Display.println("Couldn't find BMP280");
-        delay(2000);
-        M5.Power.powerOff();
-        return;
-    }
-
-    /* Default settings from datasheet. */
-    bmp.setSampling(
-        // Operating Mode.
-        BMP280::MODE_NORMAL,
-        // Temp. oversampling.
-        BMP280::SAMPLING_X2,
-        // Pressure oversampling.
-        BMP280::SAMPLING_X16,
-        // Filtering.
-        BMP280::FILTER_X16,
-        // Standby time.
-        BMP280::STANDBY_MS_500
-    );
+    isBmp280Initialised = TryInitialiseBmp280();
 
     M5.Display.setRotation(1);
-
     M5.Display.clear();
     M5.Display.setCursor(0,0);
 }
@@ -204,18 +224,21 @@ void SendSensorPayloadToMqtt() {
 
     doc["device"]["name"] = SECRET_MQTT_DEVICE_NAME;
 
-    //SHT4X
-    doc["SHT4X"]["temperature"]["value"] = sht4.cTemp;
-    doc["SHT4X"]["temperature"]["unit"] = "C";
-
-    doc["SHT4X"]["humidity"]["value"] = sht4.humidity;
-    doc["SHT4X"]["humidity"]["unit"] = "%";
-
-    doc["BMP280"]["temperature"]["value"] = bmp.cTemp;
-    doc["BMP280"]["temperature"]["unit"] = "C";
-
-    doc["BMP280"]["pressure"]["value"] = bmp.pressure;
-    doc["BMP280"]["pressure"]["unit"] = "Pa";
+    if (isSht4xInitialised) {
+        doc["SHT4X"]["temperature"]["value"] = sht4.cTemp;
+        doc["SHT4X"]["temperature"]["unit"] = "C";
+    
+        doc["SHT4X"]["humidity"]["value"] = sht4.humidity;
+        doc["SHT4X"]["humidity"]["unit"] = "%";
+    }
+    
+    if (isBmp280Initialised) {
+        doc["BMP280"]["temperature"]["value"] = bmp.cTemp;
+        doc["BMP280"]["temperature"]["unit"] = "C";
+        
+        doc["BMP280"]["pressure"]["value"] = bmp.pressure;
+        doc["BMP280"]["pressure"]["unit"] = "Pa";
+    }
 
     mqttClient.beginPublish(mqttTopic, measureJson(doc), false);
     BufferingPrint bufferedClient(mqttClient, 32);
@@ -552,25 +575,33 @@ void DisplayLowerStatusBar() {
 void WriteToSerial() {
     Serial.println("----------------");
 
-    Serial.print("Temp (SHT40): ");
-    Serial.print(sht4.cTemp);
-    Serial.println("C");
+    if (isSht4xInitialised) {
+        Serial.print("Temp (SHT40): ");
+        Serial.print(sht4.cTemp);
+        Serial.println("C");
+    }
 
-    Serial.print("Temp (BMP280): ");
-    Serial.print(bmp.cTemp);
-    Serial.println("C");
+    if (isBmp280Initialised) {
+        Serial.print("Temp (BMP280): ");
+        Serial.print(bmp.cTemp);
+        Serial.println("C");
+    }
 
-    Serial.print("Humidity: ");
-    Serial.print(sht4.humidity);
-    Serial.println("% rH");
+    if (isSht4xInitialised) {
+        Serial.print("Humidity: ");
+        Serial.print(sht4.humidity);
+        Serial.println("% rH");
+    }
 
-    Serial.print("Pressure: ");
-    Serial.print(bmp.pressure);
-    Serial.println(" Pa");
+    if (isBmp280Initialised) {
+        Serial.print("Pressure: ");
+        Serial.print(bmp.pressure);
+        Serial.println(" Pa");
 
-    Serial.print("Approx altitude: ");
-    Serial.print(bmp.altitude);
-    Serial.println(" m");
+        Serial.print("Approx altitude: ");
+        Serial.print(bmp.altitude);
+        Serial.println(" m");
+    }
 
     Serial.println("----------------");
 }
@@ -587,11 +618,22 @@ void WriteToDisplay() {
     // ========
 
     M5.Display.setTextSize(3);
-    M5.Display.print(sht4.cTemp);
-    M5.Display.print('C');
+    if (isSht4xInitialised) {
+        M5.Display.print(sht4.cTemp);
+        M5.Display.print('C');
+    } else {
+        M5.Display.print("N/A   ");
+        
+    }
+    
     M5.Display.print('-');
-    M5.Display.print(bmp.cTemp);
-    M5.Display.println("C");
+
+    if (isBmp280Initialised) {
+        M5.Display.print(bmp.cTemp);
+        M5.Display.println("C");
+    } else {
+        M5.Display.print("N/A   ");
+    }
 
     M5.Display.setTextSize(1);
     M5.Display.println();
@@ -601,8 +643,12 @@ void WriteToDisplay() {
     // ========
 
     M5.Display.setTextSize(3);
-    M5.Display.print(sht4.humidity);
-    M5.Display.println("% RH");
+    if (isSht4xInitialised) {
+        M5.Display.print(sht4.humidity);
+        M5.Display.println("% RH");
+    } else {
+        M5.Display.println("N/A       ");
+    }
 
     M5.Display.setTextSize(1);
     M5.Display.println();
@@ -612,13 +658,18 @@ void WriteToDisplay() {
     // ========
 
     M5.Display.setTextSize(2);
-    M5.Display.print(bmp.pressure / 101325);
-    M5.Display.print("atm");
+    if (isBmp280Initialised) {
 
-    M5.Display.print(" | ");
-
-    M5.Display.print(int(bmp.pressure));
-    M5.Display.println("Pa");
+        M5.Display.print(bmp.pressure / 101325);
+        M5.Display.print("atm");
+        
+        M5.Display.print(" | ");
+        
+        M5.Display.print(int(bmp.pressure));
+        M5.Display.println("Pa ");
+    } else {
+        M5.Display.println("                  Pa");
+    }
 
     M5.Display.setTextSize(1);
     
@@ -646,8 +697,19 @@ void loop() {
     }
 
     // Update the sensors
-    bmp.update();
-    sht4.update();
+    if (isBmp280Initialised) {
+        //TODO: Handle case this is unplugged
+        bmp.update();
+    } else{
+        isBmp280Initialised = TryInitialiseBmp280();
+    }
+    
+    if (isSht4xInitialised) {
+        //TODO: Handle case this is unplugged
+        sht4.update();
+    } else {
+        isSht4xInitialised = TryInitialiseSht4x();
+    }
 
     WriteToSerial();
 
