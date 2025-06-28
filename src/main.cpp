@@ -1,9 +1,10 @@
-#include <string>
+#include <string.h>
+#include <time.h>
 
 #include <ArduinoJson.h>
 #include <esp_sntp.h>
-#include <M5StickCPlus2.h>
 #include <M5UnitENV.h>
+#include <M5Unified.h>
 #include <PubSubClient.h>
 #include <StreamUtils.h>
 #include <WiFi.h>
@@ -14,59 +15,86 @@
 #define NTP_SERVER2 "1.pool.ntp.org"
 #define NTP_SERVER3 "2.pool.ntp.org"
 
-const char *ssid = SECRET_WIFI_SSID;
-const char *password = SECRET_WIFI_PASS;
+#ifdef IS_M5_ATOM_LITE
+    #define SDA_PORT (uint8_t) 26
+    #define SCL_PORT (uint8_t) 32
+#endif
 
-const char *mqttHost = SECRET_MQTT_HOST;
-const int mqttPort = SECRET_MQTT_PORT;
-const char *mqttTopic = SECRET_MQTT_TOPIC;
+#ifdef IS_M5_STICK_C_PLUS2
+    #define uint8_t SDA_PORT = 32
+    #define uint8_t SCL_PORT = 33
+#endif
 
-const char *mqttClientId = SECRET_MQTT_CLIENT_ID;
-
-const char *mqttUsername = SECRET_MQTT_USER;
-const char *mqttPassword = SECRET_MQTT_PASS;
 
 String GetDatetimeString() {
-    auto date = M5.Rtc.getDate();
-    auto time = M5.Rtc.getTime();
+    int year, month, day;
+    int hours, minutes, seconds;
+
+    if (M5.Rtc.isEnabled()) {
+        auto date = M5.Rtc.getDate();
+        auto time = M5.Rtc.getTime();
+
+        year = date.year;
+        month = date.month;
+        day = date.date;
+
+        hours = time.hours;
+        minutes = time.minutes;
+        seconds = time.seconds;
+    } else {
+        struct timespec today;
+        
+        clock_gettime(CLOCK_REALTIME, &today);
+
+        time_t now_time = today.tv_sec;
+        tm* local_time = localtime(&now_time);
+
+        year = local_time -> tm_year + 1900;
+        month = local_time -> tm_mon + 1;
+        day = local_time -> tm_mday;
+
+        hours = local_time -> tm_hour;
+        minutes = local_time -> tm_min;
+        seconds = local_time -> tm_sec;
+    }
 
     // year
-    auto dateString = String(date.year);
+    auto dateString = String(year);
 
     // month
     dateString = dateString + "-";
-    if (date.month < 10) {
+    if (month < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(date.month);
+    dateString = dateString + String(month);
 
     // day
     dateString = dateString + "-";
-    if (date.date < 10) {
+    if (day < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(date.date);
+    dateString = dateString + String(day);
 
     // hour
     dateString = dateString + "T";
-    if (time.hours < 10) {
+    if (hours < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(time.hours);
+    dateString = dateString + String(hours);
 
     // minute
     dateString = dateString + ":";
-    if (time.minutes < 10) {
+    if (minutes < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(time.minutes);
+    dateString = dateString + String(minutes);
 
     // seconds
     dateString = dateString + ":";
-    if (time.seconds < 10) {
+    if (seconds < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(time.seconds);
+    dateString = dateString + String(seconds);
 
     dateString = dateString + "Z";
 
@@ -74,48 +102,76 @@ String GetDatetimeString() {
 }
 
 String GetHumanReadableDatetimeString() {
-    auto date = M5.Rtc.getDate();
-    auto time = M5.Rtc.getTime();
+    int year, month, day;
+    int hours, minutes, seconds;
+
+    if (M5.Rtc.isEnabled()) {
+        auto date = M5.Rtc.getDate();
+        auto time = M5.Rtc.getTime();
+
+        year = date.year;
+        month = date.month;
+        day = date.date;
+
+        hours = time.hours;
+        minutes = time.minutes;
+        seconds = time.seconds;
+    } else {
+        struct timespec today;
+        
+        clock_gettime(CLOCK_REALTIME, &today);
+
+        time_t now_time = today.tv_sec;
+        tm* local_time = localtime(&now_time);
+
+        year = local_time -> tm_year + 1900;
+        month = local_time -> tm_mon + 1;
+        day = local_time -> tm_mday;
+
+        hours = local_time -> tm_hour;
+        minutes = local_time -> tm_min;
+        seconds = local_time -> tm_sec;
+    }
     
     auto dateString = String();
 
     // day
-    if (date.date < 10) {
+    if (day < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(date.date);
+    dateString = dateString + String(day);
 
     // month
     dateString = dateString + "/";
-    if (date.month < 10) {
+    if (month < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(date.month);
+    dateString = dateString + String(month);
 
     // year
-    dateString = dateString + "/" + String(date.year);
+    dateString = dateString + "/" + String(year);
 
 
     // hour
     dateString = dateString + " ";
-    if (time.hours < 10) {
+    if (hours < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(time.hours);
+    dateString = dateString + String(hours);
 
     // minute
     dateString = dateString + ":";
-    if (time.minutes < 10) {
+    if (minutes < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(time.minutes);
+    dateString = dateString + String(minutes);
 
     // seconds
     dateString = dateString + ":";
-    if (time.seconds < 10) {
+    if (seconds < 10) {
         dateString = dateString + "0";
     }
-    dateString = dateString + String(time.seconds);
+    dateString = dateString + String(seconds);
 
     return dateString;
 }
@@ -129,14 +185,8 @@ bool isSht4xInitialised = false;
 bool isScd4xInitialised = false;
 bool isBmp280Initialised = false;
 
-void InitialiseSht4() {
-    // You can have 3 different precisions, higher precision takes longer
-    sht4.setPrecision(SHT4X_HIGH_PRECISION);
-    sht4.setHeater(SHT4X_NO_HEATER);
-}
-
 bool TryInitialiseSht4x() {
-    if (!sht4.begin(&Wire, SHT40_I2C_ADDR_44, 32, 33, 400000U)) {
+    if (!sht4.begin(&Wire, SHT40_I2C_ADDR_44, SDA_PORT, SCL_PORT, 400000U)) {
         Serial.println("Couldn't find SHT4x sensor");
         
         return false;
@@ -144,12 +194,22 @@ bool TryInitialiseSht4x() {
     
     Serial.println("Found SHT4x sensor");
 
-    InitialiseSht4();
+    // You can have 3 different precisions, higher precision takes longer
+    sht4.setPrecision(SHT4X_HIGH_PRECISION);
+    sht4.setHeater(SHT4X_NO_HEATER);
 
     return true;
 }
 
-void InitialiseBmp280() {
+bool TryInitialiseBmp280() {
+    if (!bmp.begin(&Wire, BMP280_I2C_ADDR, SDA_PORT, SCL_PORT, 400000U)) {
+        Serial.println("Couldn't find BMP280 sensor");
+        
+        return false;
+    }
+    
+    Serial.println("Found BMP280 sensor");
+
     /* Default settings from datasheet. */
     bmp.setSampling(
         // Operating Mode.
@@ -163,23 +223,18 @@ void InitialiseBmp280() {
         // Standby time.
         BMP280::STANDBY_MS_500
     );
-}
-
-bool TryInitialiseBmp280() {
-    if (!bmp.begin(&Wire, BMP280_I2C_ADDR, 32, 33, 400000U)) {
-        Serial.println("Couldn't find BMP280 sensor");
-        
-        return false;
-    }
-    
-    Serial.println("Found BMP280 sensor");
-
-    InitialiseBmp280();
 
     return true;
 }
 
-void InitialiseScd4x() {
+bool TryInitialiseScd4x() {
+    if (!scd4x.begin(&Wire, SCD4X_I2C_ADDR, SDA_PORT, SCL_PORT, 400000U)) {
+        Serial.println("Couldn't find SCD4X sensor");
+        return false;
+    }
+
+    Serial.println("Found SCD4X sensor");
+
     uint16_t error;
     // stop potentially previously started measurement
     error = scd4x.stopPeriodicMeasurement();
@@ -194,27 +249,11 @@ void InitialiseScd4x() {
         Serial.println(error);
     }
 
-    if (!scd4x.begin(&Wire, SCD4X_I2C_ADDR, 32, 33, 400000U)) {
-        Serial.println("Couldn't find SCD4X");
-        while (1) delay(1);
-    }
-}
-
-bool TryInitialiseScd4x() {
-    if (!scd4x.begin(&Wire, SCD4X_I2C_ADDR, 32, 33, 400000U)) {
-        Serial.println("Couldn't find SCD4X sensor");
-        return false;
-    }
-
-    Serial.println("Found SCD4X sensor");
-
-    InitialiseScd4x();
-
     return true;
 }
 
 WiFiClient wifiClient;
-PubSubClient mqttClient = PubSubClient(mqttHost, mqttPort, wifiClient);
+PubSubClient mqttClient = PubSubClient(SECRET_MQTT_HOST, SECRET_MQTT_PORT, wifiClient);
 
 bool isMqttConnected = false;
 
@@ -243,11 +282,19 @@ void setup() {
     M5.Display.setCursor(0,0);
 }
 
+bool hasRtcSyncStarted = false;
+bool hasRtcSynced = false;
+
 void SendSensorPayloadToMqtt() {
     Serial.println();
 
     if (!mqttClient.connected()) {
         Serial.println("Refusing to send sensor data as MQTT client is disconnected");
+        return;
+    }
+
+    if (!hasRtcSynced) {
+        Serial.println("Refusing to send sensor data as Clock has not synced");
         return;
     }
 
@@ -285,11 +332,21 @@ void SendSensorPayloadToMqtt() {
         doc["SCD4X"]["humidity"]["value"] = scd4x.getHumidity();
         doc["SCD4X"]["humidity"]["unit"] = "%";
         
-        doc["SCD4X"]["CO2"]["value"] = scd4x.getCO2();
-        doc["SCD4X"]["CO2"]["unit"] = "ppm";
+        doc["SCD4X"]["co2"]["value"] = scd4x.getCO2();
+        doc["SCD4X"]["co2"]["unit"] = "ppm";
     }
 
-    mqttClient.beginPublish(mqttTopic, measureJson(doc), false);
+    if (!isSht4xInitialised && ! isBmp280Initialised && !isScd4xInitialised) {
+        Serial.println("No sensor data to write. Skipping.");
+        return;
+    }
+
+    if (!mqttClient.beginPublish(SECRET_MQTT_TOPIC, measureJson(doc), false)) {
+        auto writeError = mqttClient.getWriteError();
+        Serial.print("Failed to beginPublish sensor data with write error: ");
+        Serial.println(writeError);
+    }
+
     BufferingPrint bufferedClient(mqttClient, 32);
     serializeJson(doc, bufferedClient);
     bufferedClient.flush();
@@ -405,11 +462,8 @@ void UpdateAndDisplayWiFiStatus() {
     WiFi.setHostname("Thermo_iot");
     
     WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
-    WiFi.begin(ssid, password);
+    WiFi.begin(SECRET_WIFI_SSID, SECRET_WIFI_PASS);
 }
-
-bool hasRtcSyncStarted = false;
-bool hasRtcSynced = false;
 
 int timestampDisplayCharacters = 20;
 void UpdateAndDisplayTime() {
@@ -450,7 +504,22 @@ void UpdateAndDisplayTime() {
         // Update the clock
         time_t t = time(nullptr) + 1;
         while (t > time(nullptr));
-        M5.Rtc.setDateTime(gmtime(&t));
+        
+        Serial.print("Unix time: ");
+        Serial.println(t);
+
+        if (M5.Rtc.isEnabled()) {
+            M5.Rtc.setDateTime(gmtime(&t));
+        } else {
+            // Set the system time
+            struct timespec stime;
+            stime.tv_sec = t;
+            
+            if (clock_settime(CLOCK_REALTIME, &stime) == -1) {
+                // Handle error
+                Serial.println("Error setting time of day");
+            }
+        }
         
         Serial.println("NTP sync completed");
         
@@ -515,12 +584,12 @@ void UpdateAndDisplayWiFiClientStatus() {
     }
 
     Serial.print("Attempting to connect to WiFi client (");
-    Serial.print(mqttHost);
+    Serial.print(SECRET_MQTT_HOST);
     Serial.print(":");
-    Serial.print(mqttPort);
+    Serial.print(SECRET_MQTT_PORT);
     Serial.println(")");
 
-    if (wifiClient.connect(mqttHost, mqttPort)) {
+    if (wifiClient.connect(SECRET_MQTT_HOST, SECRET_MQTT_PORT)) {
         Serial.println("Connected to WiFi client");
         M5.Display.print("Connected!");
         
@@ -598,11 +667,11 @@ void UpdateAndDisplayMqttClientStatus() {
 
     Serial.println("Attempting to connect to MQTT");
     Serial.print("Client id: ");
-    Serial.println(mqttClientId);
+    Serial.println(SECRET_MQTT_CLIENT_ID);
     Serial.print("Username: ");
-    Serial.println(mqttUsername);
+    Serial.println(SECRET_MQTT_USER);
 
-    mqttClient.connect(mqttClientId, mqttUsername, mqttPassword);
+    mqttClient.connect(SECRET_MQTT_CLIENT_ID, SECRET_MQTT_USER, SECRET_MQTT_PASS);
 }
 
 void DisplayLowerStatusBar() {
@@ -622,6 +691,7 @@ void DisplayLowerStatusBar() {
 }
 
 void WriteToSerial() {
+    Serial.println();
     Serial.println("----------------");
 
     if (isSht4xInitialised) {
@@ -663,6 +733,7 @@ void WriteToSerial() {
     }
 
     Serial.println("----------------");
+    Serial.println();
 }
 
 void WriteToDisplay() {
@@ -751,6 +822,9 @@ void WriteToDisplay() {
 unsigned int loopCount = 0;
 
 void loop() {
+    Serial.print("Loop: ");
+    Serial.print(++loopCount);
+    
     // Turn off when the power button is held
     M5.update();
     if (M5.BtnPWR.isPressed()) {
@@ -786,7 +860,7 @@ void loop() {
 
     WriteToDisplay();
 
-    if (++loopCount >= 30) {
+    if (loopCount >= 10) {
         SendSensorPayloadToMqtt();
         loopCount = 0;
     }

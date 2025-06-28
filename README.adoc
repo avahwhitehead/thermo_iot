@@ -15,10 +15,18 @@
 
 === Code Installation
 
-Create a `secrets.h` file in the `src/` directory:
+. In link:./platformio.ini[platformio.ini] set the `board` property to be either `m5stack-atom` or `m5stick-c`.
 
+. Create a `secrets.h` file in the `src/` directory with the following content:
++
 [source, cpp]
 ----
+
+// Uncomment one of these lines
+// Depending on which device you are using:
+// #define IS_M5_ATOM_LITE
+// #define IS_M5_STICK_C_PLUS2
+
 #define SECRET_WIFI_SSID "WiFi SSID"
 #define SECRET_WIFI_PASS "WiFi Password"
 
@@ -33,6 +41,8 @@ Create a `secrets.h` file in the `src/` directory:
 #define SECRET_MQTT_USER "MQTT User"
 #define SECRET_MQTT_PASS "MQTT Password"
 ----
++
+NOTE: Each unique device must have its own client ID.
 
 === Software Setup
 
