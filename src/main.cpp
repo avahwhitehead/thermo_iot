@@ -16,13 +16,13 @@
 #define NTP_SERVER3 "2.pool.ntp.org"
 
 #ifdef IS_M5_ATOM_LITE
-    #define SDA_PORT (uint8_t) 26
-    #define SCL_PORT (uint8_t) 32
+    #define SDA_PORT 26
+    #define SCL_PORT 32
 #endif
 
 #ifdef IS_M5_STICK_C_PLUS2
-    #define SDA_PORT (uint8_t) 32
-    #define SCL_PORT (uint8_t) 33
+    #define SDA_PORT 32
+    #define SCL_PORT 33
 #endif
 
 
@@ -227,7 +227,7 @@ bool TryInitialiseBmp280() {
 }
 
 bool TryInitialiseScd4x() {
-    if (!scd4.begin(&Wire, SCD4X_I2C_ADDR, 32, 33, 400000U)) {
+    if (!scd4.begin(&Wire, SCD4X_I2C_ADDR, SDA_PORT, SCL_PORT, 400000U)) {
         Serial.println("Couldn't find SCD4X");
         return false;
     }
@@ -265,8 +265,8 @@ void setup() {
     Serial.flush();
 
     Serial.println("Initialising...");
-
-    Wire.begin();
+    
+    Wire.begin(SDA_PORT, SCL_PORT, 400000U);
 
     isSht4xInitialised = TryInitialiseSht4x();
 
@@ -808,6 +808,7 @@ void WriteToDisplay() {
     }
 
     M5.Display.setTextSize(1);
+    M5.Display.println();
     M5.Display.println();
 
     DisplayLowerStatusBar();
