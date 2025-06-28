@@ -6,6 +6,8 @@
 #include <M5UnitENV.h>
 #include <M5Unified.h>
 #include <PubSubClient.h>
+#include <SensirionCore.h>
+#include <SensirionI2cScd4x.h>
 #include <StreamUtils.h>
 #include <WiFi.h>
 
@@ -21,8 +23,8 @@
 #endif
 
 #ifdef IS_M5_STICK_C_PLUS2
-    #define uint8_t SDA_PORT = 32
-    #define uint8_t SCL_PORT = 33
+    #define SDA_PORT (uint8_t) 32
+    #define SCL_PORT (uint8_t) 33
 #endif
 
 
@@ -176,10 +178,15 @@ String GetHumanReadableDatetimeString() {
     return dateString;
 }
 
+// SCD4X sensor readings
+// This library works differently to the others unfortunately
+uint16_t scd4x_co2Concentration = 0;
+float scd4x_temperature = 0.0;
+float scd4x_relativeHumidity = 0.0;
 
 SHT4X sht4;
 BMP280 bmp;
-SCD4X scd4x;
+SensirionI2cScd4x scd4x;
 
 bool isSht4xInitialised = false;
 bool isScd4xInitialised = false;
@@ -227,27 +234,48 @@ bool TryInitialiseBmp280() {
     return true;
 }
 
+char errorMessage[64];
+int16_t error;
+
 bool TryInitialiseScd4x() {
-    if (!scd4x.begin(&Wire, SCD4X_I2C_ADDR, SDA_PORT, SCL_PORT, 400000U)) {
-        Serial.println("Couldn't find SCD4X sensor");
+    scd4x.begin(Wire, SCD41_I2C_ADDR_62);
+
+    uint64_t serialNumber = 0;
+    delay(30);
+    // Ensure sensor is in clean state
+    error = scd4x.wakeUp();
+    if (error != 0) {
+        Serial.print("Error trying to execute wakeUp(): ");
+        errorToString(error, errorMessage, sizeof errorMessage);
+        Serial.println(errorMessage);
+    }
+
+    error = scd4x.stopPeriodicMeasurement();
+    if (error != 0) {
+        Serial.print("Error trying to execute stopPeriodicMeasurement(): ");
+        errorToString(error, errorMessage, sizeof errorMessage);
+        Serial.println(errorMessage);
+    }
+
+    error = scd4x.reinit();
+    if (error != 0) {
+        Serial.print("Error trying to execute reinit(): ");
+        errorToString(error, errorMessage, sizeof errorMessage);
+        Serial.println(errorMessage);
+    }
+    
+    // Read out information about the sensor
+    error = scd4x.getSerialNumber(serialNumber);
+    if (error != 0) {
+        Serial.print("Error trying to execute getSerialNumber(): ");
+        errorToString(error, errorMessage, sizeof errorMessage);
+        Serial.println(errorMessage);
         return false;
     }
 
-    Serial.println("Found SCD4X sensor");
-
-    uint16_t error;
-    // stop potentially previously started measurement
-    error = scd4x.stopPeriodicMeasurement();
-    if (error) {
-        Serial.print("Error trying to execute stopPeriodicMeasurement(): ");
-    }
-    
-    // Start Measurement
-    error = scd4x.startPeriodicMeasurement();
-    if (error) {
-        Serial.print("Error trying to execute startPeriodicMeasurement(): ");
-        Serial.println(error);
-    }
+    Serial.print("serial number: 0x");
+    Serial.print(serialNumber);
+    Serial.println();
 
     return true;
 }
@@ -326,13 +354,13 @@ void SendSensorPayloadToMqtt() {
     }
     
     if (isScd4xInitialised) {
-        doc["SCD4X"]["temperature"]["value"] = scd4x.getTemperature();
+        doc["SCD4X"]["temperature"]["value"] = scd4x_temperature;
         doc["SCD4X"]["temperature"]["unit"] = "C";
         
-        doc["SCD4X"]["humidity"]["value"] = scd4x.getHumidity();
+        doc["SCD4X"]["humidity"]["value"] = scd4x_relativeHumidity;
         doc["SCD4X"]["humidity"]["unit"] = "%";
         
-        doc["SCD4X"]["co2"]["value"] = scd4x.getCO2();
+        doc["SCD4X"]["co2"]["value"] = scd4x_co2Concentration;
         doc["SCD4X"]["co2"]["unit"] = "ppm";
     }
 
@@ -720,15 +748,15 @@ void WriteToSerial() {
 
     if (isScd4xInitialised) {
         Serial.print("Temp (SCD4X): ");
-        Serial.print(scd4x.getTemperature());
+        Serial.print(scd4x_temperature);
         Serial.println("C");
         
         Serial.print("C02: ");
-        Serial.print(scd4x.getCO2());
+        Serial.print(scd4x_co2Concentration);
         Serial.println("ppm");
         
         Serial.print("Humidity: ");
-        Serial.print(scd4x.getHumidity());
+        Serial.print(scd4x_relativeHumidity);
         Serial.println("% RH");
     }
 
@@ -788,23 +816,26 @@ void WriteToDisplay() {
     // ========
 
     M5.Display.setTextSize(2);
-    if (isScd4xInitialised) {
-        M5.Display.print(scd4x.getCO2());
-        M5.Display.println("ppm      ");
-    } else {
-        M5.Display.println("N/A   ppm");
-    }
-    M5.Display.println(" ");
 
-    // M5.Display.setTextSize(1);
-    // M5.Display.println();
-
-    M5.Display.setTextSize(2);
     if (isBmp280Initialised) {
-        M5.Display.print(int(bmp.pressure));
-        M5.Display.println("Pa ");
+        auto pressure = int(bmp.pressure);
+        M5.Display.print(pressure);
+        M5.Display.print("Pa ");
+        if (pressure < 10) M5.Display.print(" ");
+        if (pressure < 100) M5.Display.print(" ");
+        if (pressure < 1000) M5.Display.print(" ");
+        if (pressure < 10000) M5.Display.print(" ");
+        if (pressure < 100000) M5.Display.print(" ");
+        if (pressure < 1000000) M5.Display.print(" ");
     } else {
-        M5.Display.println("N/A   Pa");
+        M5.Display.print("N/A   Pa ");
+    }
+
+    if (isScd4xInitialised) {
+        M5.Display.print(scd4x_co2Concentration);
+        M5.Display.print("ppm");
+    } else {
+        M5.Display.print("N/A ppm      ");
     }
 
     M5.Display.setTextSize(1);
@@ -823,8 +854,8 @@ unsigned int loopCount = 0;
 
 void loop() {
     Serial.print("Loop: ");
-    Serial.print(++loopCount);
-    
+    Serial.println(++loopCount);
+
     // Turn off when the power button is held
     M5.update();
     if (M5.BtnPWR.isPressed()) {
@@ -850,17 +881,26 @@ void loop() {
     }
 
     if (isScd4xInitialised) {
-        //TODO: Handle case this is unplugged
-        scd4x.update();
+        if (loopCount % 5 == 0) {
+            // Perform single shot measurement and read data.
+            error = scd4x.measureSingleShot();
+            error = scd4x.readMeasurement(scd4x_co2Concentration, scd4x_temperature, scd4x_relativeHumidity);
+            if (error != 0) {
+                Serial.print("Error trying to execute measureAndReadSingleShot(): ");
+                errorToString(error, errorMessage, sizeof errorMessage);
+                Serial.println(errorMessage);
+                return;
+            }
+        }
     } else {
-        isScd4xInitialised = TryInitialiseSht4x();
+        isScd4xInitialised = TryInitialiseScd4x();
     }
 
     WriteToSerial();
 
     WriteToDisplay();
 
-    if (loopCount >= 10) {
+    if (loopCount % 5 == 0) {
         SendSensorPayloadToMqtt();
         loopCount = 0;
     }
