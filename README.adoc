@@ -31,6 +31,7 @@
 #define SECRET_WIFI_PASS "WiFi Password"
 
 #define SECRET_MQTT_HOST "mqtt.example.com"
+#define SECRET_MQTT_HOST_WITH_PROTOCOL "mqtt://mqtt.example.com"
 #define SECRET_MQTT_PORT 1883
 
 #define SECRET_MQTT_DEVICE_NAME "My Thermo IoT"

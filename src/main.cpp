@@ -250,7 +250,7 @@ bool TryInitialiseScd4x() {
 }
 
 WiFiClient wifiClient;
-PubSubClient mqttClient = PubSubClient(SECRET_MQTT_HOST, SECRET_MQTT_PORT, wifiClient);
+PubSubClient mqttClient = PubSubClient(SECRET_MQTT_HOST_WITH_PROTOCOL, SECRET_MQTT_PORT, wifiClient);
 
 bool isMqttConnected = false;
 
@@ -860,6 +860,7 @@ void loop() {
 
     WriteToDisplay();
 
+    // Note: this must be less than 20 due to Mosquitto timeout (which I cannot figure out how to change)
     if (loopCount == 15) {
         SendSensorPayloadToMqtt();
         loopCount = 0;
