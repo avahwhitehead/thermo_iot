@@ -744,24 +744,31 @@ void WriteToDisplay() {
     // Temperature
     // ========
 
-    M5.Display.setTextSize(3);
+    float totalTemperature = 0.0;
+    int temperatureDataPoints = 0;
     if (isSht4xInitialised) {
-        M5.Display.print(sht4.cTemp);
-        M5.Display.print('C');
-    } else {
-        M5.Display.print("N/A   ");
-        
+        totalTemperature += sht4.cTemp;
+        temperatureDataPoints++;
     }
-    
-    M5.Display.print('-');
-
     if (isBmp280Initialised) {
-        M5.Display.print(bmp.cTemp);
-        M5.Display.println("C");
-    } else {
-        M5.Display.print("N/A   ");
+        totalTemperature += bmp.cTemp;
+        temperatureDataPoints++;
+    }
+    if (isScd4xInitialised) {
+        totalTemperature += scd4.getTemperature();
+        temperatureDataPoints++;
     }
 
+    M5.Display.setTextSize(3);
+    if (temperatureDataPoints > 0) {
+        M5.Display.print(totalTemperature / (float)temperatureDataPoints);
+        M5.Display.print('C');
+        M5.Display.print("    ");
+    } else {
+        M5.Display.print("N/A     ");
+    }
+    M5.Display.println();
+    
     M5.Display.setTextSize(1);
     M5.Display.println();
 
@@ -861,7 +868,7 @@ void loop() {
     WriteToDisplay();
 
     // Note: this must be less than 20 due to Mosquitto timeout (which I cannot figure out how to change)
-    if (loopCount == 15) {
+    if (loopCount == 10) {
         SendSensorPayloadToMqtt();
         loopCount = 0;
     }
