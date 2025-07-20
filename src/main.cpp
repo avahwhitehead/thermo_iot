@@ -1,3 +1,4 @@
+#include <limits>
 #include <string.h>
 #include <time.h>
 
@@ -290,10 +291,10 @@ void SendSensorPayloadToMqtt() {
         return;
     }
 
-    if (!hasRtcSynced) {
-        Serial.println("Refusing to send sensor data as Clock has not synced");
-        return;
-    }
+    // if (!hasRtcSynced) {
+        // Serial.println("Refusing to send sensor data as Clock has not synced");
+        // return;
+    // }
 
     Serial.println("Attempting to send sensor data");
 
@@ -619,11 +620,11 @@ void UpdateAndDisplayMqttClientStatus() {
         return;
     }
     
-    if (!hasRtcSynced) {
-        M5.Display.print("Waiting...  ");
-        Serial.println("Refusing to connect to MQTT client; RTC not synced.");
-        return;
-    }
+    // if (!hasRtcSynced) {
+    //     M5.Display.print("Waiting...  ");
+    //     Serial.println("Refusing to connect to MQTT client; RTC not synced.");
+    //     return;
+    // }
 
     if (state == MQTT_CONNECTION_TIMEOUT) {
         Serial.println("MQTT state: MQTT_CONNECTION_TIMEOUT");
@@ -733,6 +734,46 @@ void WriteToSerial() {
     Serial.println();
 }
 
+float GetCombinedTemperature() {
+    float totalTemperature = 0.0;
+    int dataPoints = 0;
+    
+    if (isSht4xInitialised) {
+        totalTemperature += sht4.cTemp;
+        dataPoints++;
+    }
+    if (isBmp280Initialised) {
+        totalTemperature += bmp.cTemp;
+        dataPoints++;
+    }
+    if (isScd4xInitialised) {
+        totalTemperature += scd4.getTemperature();
+        dataPoints++;
+    }
+
+    if (dataPoints == 0) return std::numeric_limits<float>::min();
+
+    return totalTemperature / (float)dataPoints;
+}
+
+float GetCombinedHumidity() {
+    float totalHumidity = 0.0;
+    int dataPoints = 0;
+    
+    if (isSht4xInitialised) {
+        totalHumidity += sht4.humidity;
+        dataPoints++;
+    }
+    if (isScd4xInitialised) {
+        totalHumidity += scd4.getHumidity();
+        dataPoints++;
+    }
+
+    if (dataPoints == 0) return std::numeric_limits<float>::min();
+
+    return totalHumidity / (float)dataPoints;
+}
+
 void WriteToDisplay() {
     M5.Display.setCursor(0, 0);
 
@@ -744,24 +785,11 @@ void WriteToDisplay() {
     // Temperature
     // ========
 
-    float totalTemperature = 0.0;
-    int temperatureDataPoints = 0;
-    if (isSht4xInitialised) {
-        totalTemperature += sht4.cTemp;
-        temperatureDataPoints++;
-    }
-    if (isBmp280Initialised) {
-        totalTemperature += bmp.cTemp;
-        temperatureDataPoints++;
-    }
-    if (isScd4xInitialised) {
-        totalTemperature += scd4.getTemperature();
-        temperatureDataPoints++;
-    }
-
     M5.Display.setTextSize(3);
-    if (temperatureDataPoints > 0) {
-        M5.Display.print(totalTemperature / (float)temperatureDataPoints);
+    
+    float temperature = GetCombinedTemperature();
+    if (temperature > std::numeric_limits<float>::min()) {
+        M5.Display.print(temperature);
         M5.Display.print('C');
         M5.Display.print("    ");
     } else {
@@ -777,8 +805,10 @@ void WriteToDisplay() {
     // ========
 
     M5.Display.setTextSize(3);
-    if (isSht4xInitialised) {
-        M5.Display.print(sht4.humidity);
+    
+    float humidity = GetCombinedHumidity();
+    if (temperature > std::numeric_limits<float>::min()) {
+        M5.Display.print(humidity);
         M5.Display.println("% RH ");
     } else {
         M5.Display.println("N/A        ");
@@ -838,7 +868,23 @@ void loop() {
     if (M5.BtnPWR.isPressed()) {
         Serial.println("Power off pressed...");
         delay(500);
-        M5.Power.deepSleep();
+        M5.Power.powerOff();
+        return;
+    }
+
+    if (M5.BtnA.isPressed()) {
+        Serial.println("Reset button pressed - disconnecting from WiFi");
+
+        WiFi.disconnect();
+        wifiClient.stop();
+        mqttClient.disconnect();
+
+        isWifiConnected = false;
+        isWifiClientConnected = false;
+        isMqttConnected = false;
+
+        delay(1000);
+
         return;
     }
 
@@ -868,9 +914,8 @@ void loop() {
     WriteToDisplay();
 
     // Note: this must be less than 20 due to Mosquitto timeout (which I cannot figure out how to change)
-    if (loopCount == 10) {
+    if (loopCount % 10 == 0) {
         SendSensorPayloadToMqtt();
-        loopCount = 0;
     }
 
     delay(1000);
